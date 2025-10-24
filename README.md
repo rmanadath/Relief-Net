@@ -1,4 +1,4 @@
-# Crisis Aid Optimizer 🌐
+# Relief-Net 🌐
 
 _A disaster relief web platform designed to connect people in need with volunteers who can offer help._
 
@@ -6,7 +6,7 @@ _A disaster relief web platform designed to connect people in need with voluntee
 
 ## 🌍 Overview
 
-Crisis Aid Optimizer is a web application that bridges the gap between **aid seekers** and **volunteers**.  
+Relief-Net is a web application that bridges the gap between **aid seekers** and **volunteers**.  
 Our mission is to make disaster relief faster, fairer, and more efficient through intelligent triage and route optimization.
 
 ---
