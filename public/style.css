@@ -13,7 +13,7 @@ body {
 
 /* Header */
 header {
-  background-color: #1e88e5;
+  background-color: #1581df;
   color: white;
   padding: 20px 0;
   text-align: center;
@@ -106,7 +106,7 @@ nav a:hover {
 
 /* Footer */
 footer {
-  background-color: #1e88e5;
+  background-color: #1581df;
   color: white;
   text-align: center;
   padding: 15px 0;
@@ -171,7 +171,7 @@ footer {
 }
 
 .dashboard-nav button.active {
-  background-color: #1e88e5;
+  background-color: #1581df;
   color: white;
   border-color: #1e88e5;
 }
@@ -221,12 +221,12 @@ footer {
 .form-group select:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #1e88e5;
-  box-shadow: 0 0 0 2px rgba(30, 136, 229, 0.2);
+  border-color: #1581df;
+  box-shadow: 0 0 0 2px rgba(21, 129, 223, 0.2);
 }
 
 .submit-btn {
-  background-color: #1e88e5;
+  background-color: #1581df;
   color: white;
   border: none;
   padding: 12px 24px;
@@ -377,7 +377,7 @@ footer {
   background-color: #f8f9fa;
   padding: 15px;
   border-radius: 4px;
-  border-left: 4px solid #1e88e5;
+  border-left: 4px solid #1581df;
 }
 
 .request-description p {
@@ -410,7 +410,7 @@ form {
 
 form h2 {
   text-align: center;
-  color: #1e88e5;
+  color: #1581df;
   margin-bottom: 20px;
 }
 
@@ -426,7 +426,7 @@ form input {
 form button {
   width: 100%;
   padding: 12px;
-  background-color: #1e88e5;
+  background-color: #1581df;
   color: white;
   border: none;
   border-radius: 4px;
@@ -442,11 +442,11 @@ form button:hover {
 
 form button[type="button"] {
   background-color: transparent;
-  color: #1e88e5;
-  border: 1px solid #1e88e5;
+  color: #1581df;
+  border: 1px solid #1581df;
 }
 
 form button[type="button"]:hover {
-  background-color: #1e88e5;
+  background-color: #1581df;
   color: white;
 }
