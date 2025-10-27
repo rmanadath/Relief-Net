@@ -1,104 +1,73 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabase'
 
-export default function RequestList() {
+export default function RequestList({ user }) {
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
+  const isAdmin = user.role === 'admin'
 
   useEffect(() => {
     fetchRequests()
-  }, [])
+  }, [user])
 
   const fetchRequests = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('requests')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (error) {
-        throw error
-      }
-
+    let query = supabase.from('requests').select('*')
+    
+    // Regular users can only see their own requests
+    if (!isAdmin) {
+      query = query.eq('user_id', user.id)
+    }
+    
+    const { data, error } = await query.order('created_at', { ascending: false })
+    
+    if (!error) {
       setRequests(data || [])
-    } catch (error) {
-      console.error('Error fetching requests:', error)
-    } finally {
-      setLoading(false)
     }
+    setLoading(false)
   }
 
-  const filteredRequests = requests.filter(request => {
-    if (filter === 'all') return true
-    return request.aid_type === filter
-  })
+  const filteredRequests = requests.filter(request => 
+    filter === 'all' || request.aid_type === filter
+  )
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'open': return 'status-open'
-      case 'fulfilled': return 'status-fulfilled'
-      case 'in_progress': return 'status-in-progress'
-      default: return 'status-open'
-    }
-  }
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  }
-
-  if (loading) {
-    return <div className="loading">Loading requests...</div>
-  }
+  if (loading) return <div className="loading">Loading requests...</div>
 
   return (
     <div className="request-list">
       <div className="list-header">
-        <h3>Available Requests</h3>
+        <h3>{isAdmin ? 'All Requests' : 'My Requests'}</h3>
         <div className="filter-controls">
-          <label htmlFor="filter">Filter by type:</label>
-          <select
-            id="filter"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          >
-            <option value="all">All Types</option>
+          <label>Filter by type:</label>
+          <select value={filter} onChange={(e) => setFilter(e.target.value)}>
+            <option value="all">All</option>
             <option value="food">Food</option>
             <option value="medicine">Medicine</option>
             <option value="shelter">Shelter</option>
             <option value="clothing">Clothing</option>
-            <option value="transportation">Transportation</option>
             <option value="other">Other</option>
           </select>
         </div>
       </div>
 
       {filteredRequests.length === 0 ? (
-        <div className="no-requests">
-          <p>No requests found. {filter !== 'all' ? 'Try changing the filter.' : 'Be the first to post a request!'}</p>
-        </div>
+        <div className="no-requests">No requests found.</div>
       ) : (
         <div className="requests-grid">
           {filteredRequests.map((request) => (
             <div key={request.id} className="request-card">
               <div className="request-header">
                 <h4>{request.name}</h4>
-                <span className={`status ${getStatusColor(request.status)}`}>
-                  {request.status.replace('_', ' ').toUpperCase()}
+                <span className={`status status-${request.status}`}>
+                  {request.status}
                 </span>
               </div>
               
               <div className="request-details">
                 <p><strong>Type:</strong> {request.aid_type}</p>
-                <p><strong>Location:</strong> {request.location}</p>
                 <p><strong>Contact:</strong> {request.contact}</p>
-                <p><strong>Posted:</strong> {formatDate(request.created_at)}</p>
+                <p><strong>Location:</strong> {request.location}</p>
+                <p><strong>Date:</strong> {new Date(request.created_at).toLocaleDateString()}</p>
               </div>
               
               <div className="request-description">
