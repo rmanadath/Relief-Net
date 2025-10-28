@@ -5,40 +5,32 @@ import Dashboard from './Dashboard'
 
 export default function App() {
   const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(false)
-
-  const fetchUserProfile = async (userId) => {
-    try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', userId)
-        .single()
-      
-      return data?.role || 'user'
-    } catch (error) {
-      console.log('Profile fetch error:', error)
-      return 'user'
-    }
-  }
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check for existing session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        const role = await fetchUserProfile(session.user.id)
-        setUser({ ...session.user, role })
-      } else {
+    // Simplified auth check - no profile fetching
+    const checkAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user) {
+          setUser({ ...session.user, role: 'user' }) // Default role
+        } else {
+          setUser(null)
+        }
+      } catch (error) {
+        console.log('Auth check error:', error)
         setUser(null)
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
-    })
+    }
+
+    checkAuth()
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
-        const role = await fetchUserProfile(session.user.id)
-        setUser({ ...session.user, role })
+        setUser({ ...session.user, role: 'user' }) // Default role
       } else {
         setUser(null)
       }
@@ -49,5 +41,26 @@ export default function App() {
 
   if (loading) return <div className="flex items-center justify-center min-h-screen text-slate-600">Loading...</div>
 
-  return user ? <Dashboard user={user} /> : <Auth />
+  // Add a simple bypass for testing (remove in production)
+  const handleTestLogin = () => {
+    setUser({ 
+      id: 'test-user-123', 
+      email: 'test@example.com', 
+      role: 'user' 
+    })
+  }
+
+  return user ? <Dashboard user={user} /> : (
+    <div>
+      <Auth />
+      <div className="mt-4 text-center">
+        <button 
+          onClick={handleTestLogin}
+          className="bg-green-500 text-white px-4 py-2 rounded-md text-sm"
+        >
+          Skip Login (Test Mode)
+        </button>
+      </div>
+    </div>
+  )
 }

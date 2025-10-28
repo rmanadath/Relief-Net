@@ -51,6 +51,7 @@ export default function RequestForm({ user, onRequestSubmitted }) {
         name: '',
         contact: '',
         aid_type: 'food',
+        priority: 'medium',
         description: '',
         location: ''
       })

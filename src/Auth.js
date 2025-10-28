@@ -28,29 +28,23 @@ export default function Auth() {
     setSubmitting(true)
     
     try {
-      // Add a shorter timeout (5 seconds)
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Request timeout')), 5000)
-      )
-      
-      const authPromise = isLogin 
-        ? supabase.auth.signInWithPassword({ email, password })
-        : supabase.auth.signUp({ email, password })
-      
-      const { error } = await Promise.race([authPromise, timeoutPromise])
-      
-      if (error) {
-        alert(`Error: ${error.message}`)
-      } else if (!isLogin) {
-        alert('Check your email for confirmation')
+      if (isLogin) {
+        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        if (error) {
+          alert(`Login error: ${error.message}`)
+        }
+        // Success - user will be set automatically by onAuthStateChange
+      } else {
+        const { error } = await supabase.auth.signUp({ email, password })
+        if (error) {
+          alert(`Signup error: ${error.message}`)
+        } else {
+          alert('Check your email for confirmation')
+        }
       }
     } catch (error) {
       console.error('Auth error:', error)
-      if (error.message === 'Request timeout') {
-        alert('Connection is slow. Please try again.')
-      } else {
-        alert(`Connection error: ${error.message}`)
-      }
+      alert(`Error: ${error.message}`)
     } finally {
       setSubmitting(false)
     }
@@ -83,26 +77,23 @@ export default function Auth() {
         {errors.password && <div className="field-error">{errors.password}</div>}
       </div>
 
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button type="submit" className="auth-btn" disabled={submitting}>
           {submitting ? 'Please wait…' : isLogin ? 'Login' : 'Sign Up'}
         </button>
-        <button 
-          type="button" 
-          className="bg-green-500 text-white px-3 py-2 rounded-md text-sm"
-          onClick={() => {
-            // Test connection
-            console.log('Testing Supabase connection...')
-            supabase.from('profiles').select('count').then(r => {
-              console.log('Connection test result:', r)
-              alert('Connection test: ' + (r.error ? 'Failed - ' + r.error.message : 'Success!'))
-            })
-          }}
-        >
-          Test Connection
-        </button>
         <button type="button" className="auth-toggle-btn" onClick={() => setIsLogin(!isLogin)}>
           {isLogin ? 'Need an account?' : 'Have an account?'}
+        </button>
+        <button 
+          type="button" 
+          className="bg-blue-500 text-white px-3 py-2 rounded-md text-sm"
+          onClick={() => {
+            // Quick test login
+            setEmail('test@example.com')
+            setPassword('password123')
+          }}
+        >
+          Fill Test Data
         </button>
       </div>
     </form>
