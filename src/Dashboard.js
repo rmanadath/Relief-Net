@@ -2,17 +2,18 @@ import { useState } from 'react'
 import { supabase } from './supabase'
 import RequestForm from './RequestForm'
 import RequestList from './RequestList'
+import AdminPanel from './AdminPanel'
 
 export default function Dashboard({ user }) {
   const [activeTab, setActiveTab] = useState('post')
   const [refreshKey, setRefreshKey] = useState(0)
+  const isAdmin = user.role === 'admin'
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
   }
 
   const handleRequestSubmitted = () => {
-    // Trigger refresh of the request list
     setRefreshKey(prev => prev + 1)
   }
 
@@ -21,7 +22,7 @@ export default function Dashboard({ user }) {
       <header className="dashboard-header">
         <h2>Welcome to ReliefNet</h2>
         <div className="user-info">
-          <p>Email: {user.email}</p>
+          <p>Email: {user.email} ({user.role})</p>
           <button onClick={handleLogout} className="logout-btn">Logout</button>
         </div>
       </header>
@@ -39,6 +40,14 @@ export default function Dashboard({ user }) {
         >
           View Requests
         </button>
+        {isAdmin && (
+          <button 
+            className={activeTab === 'admin' ? 'active' : ''}
+            onClick={() => setActiveTab('admin')}
+          >
+            Admin Panel
+          </button>
+        )}
       </nav>
 
       <main className="dashboard-content">
@@ -49,7 +58,10 @@ export default function Dashboard({ user }) {
           />
         )}
         {activeTab === 'view' && (
-          <RequestList key={refreshKey} />
+          <RequestList key={refreshKey} user={user} />
+        )}
+        {activeTab === 'admin' && isAdmin && (
+          <AdminPanel user={user} onUpdate={handleRequestSubmitted} />
         )}
       </main>
     </div>
