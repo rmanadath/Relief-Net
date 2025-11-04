@@ -8,7 +8,10 @@ export default function RequestForm({ user, onRequestSubmitted }) {
     aid_type: 'food',
     priority: 'medium',
     description: '',
-    location: ''
+    location: '',
+    address: '',
+    latitude: '',
+    longitude: ''
   })
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
@@ -39,9 +42,18 @@ export default function RequestForm({ user, onRequestSubmitted }) {
     if (!validate()) return
     setLoading(true)
     
+    // Prepare data with coordinates (convert to numbers if provided)
+    const requestData = {
+      ...formData,
+      user_id: user.id,
+      address: formData.address || formData.location,
+      latitude: formData.latitude ? parseFloat(formData.latitude) : null,
+      longitude: formData.longitude ? parseFloat(formData.longitude) : null
+    }
+    
     const { error } = await supabase
       .from('requests')
-      .insert([{ ...formData, user_id: user.id }])
+      .insert([requestData])
     
     if (error) {
       setMessage('Error: ' + error.message)
@@ -53,7 +65,10 @@ export default function RequestForm({ user, onRequestSubmitted }) {
         aid_type: 'food',
         priority: 'medium',
         description: '',
-        location: ''
+        location: '',
+        address: '',
+        latitude: '',
+        longitude: ''
       })
       onRequestSubmitted()
     }
@@ -124,14 +139,40 @@ export default function RequestForm({ user, onRequestSubmitted }) {
         </div>
         
         <div className="form-group">
-          <label>Location:</label>
+          <label>Location/Address:</label>
           <input
             type="text"
             value={formData.location}
-            onChange={(e) => setFormData({...formData, location: e.target.value})}
+            onChange={(e) => setFormData({...formData, location: e.target.value, address: e.target.value})}
+            placeholder="City, State or full address"
             required
           />
           {errors.location && <div className="field-error">{errors.location}</div>}
+        </div>
+        
+        <div className="form-group">
+          <label>Coordinates (Optional - for route optimization):</label>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <input
+              type="number"
+              step="any"
+              value={formData.latitude}
+              onChange={(e) => setFormData({...formData, latitude: e.target.value})}
+              placeholder="Latitude"
+              style={{ flex: 1 }}
+            />
+            <input
+              type="number"
+              step="any"
+              value={formData.longitude}
+              onChange={(e) => setFormData({...formData, longitude: e.target.value})}
+              placeholder="Longitude"
+              style={{ flex: 1 }}
+            />
+          </div>
+          <small style={{ color: '#666', fontSize: '12px' }}>
+            Optional: Provide coordinates for route optimization. You can get these from Google Maps.
+          </small>
         </div>
         
         <button type="submit" disabled={loading} className="submit-btn">
