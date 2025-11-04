@@ -6,6 +6,8 @@ export default function RequestList({ user }) {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [search, setSearch] = useState('')
   const isAdmin = user.role === 'admin'
 
   useEffect(() => {
@@ -31,7 +33,11 @@ export default function RequestList({ user }) {
   const filteredRequests = requests.filter(request => {
     const typeOk = filter === 'all' || request.aid_type === filter
     const priorityOk = priorityFilter === 'all' || (request.priority || 'medium') === priorityFilter
-    return typeOk && priorityOk
+    const statusOk = statusFilter === 'all' || (request.status || 'pending') === statusFilter
+    const searchOk = search.trim() === '' ||
+      (request.location && request.location.toLowerCase().includes(search.trim().toLowerCase())) ||
+      (request.description && request.description.toLowerCase().includes(search.trim().toLowerCase()))
+    return typeOk && priorityOk && statusOk && searchOk
   })
 
   if (loading) return <div className="loading text-sm text-slate-600">Loading requests...</div>
@@ -40,7 +46,7 @@ export default function RequestList({ user }) {
     <div className="request-list">
       <div className="list-header flex items-center justify-between mb-2">
         <h3 className="text-lg font-medium">{isAdmin ? 'All Requests' : 'My Requests'}</h3>
-        <div className="filter-controls flex items-center gap-2">
+        <div className="filter-controls flex items-center gap-2 flex-wrap">
           <label className="text-sm text-slate-700">Type:</label>
           <select className="border rounded-md px-2 py-1 text-sm" value={filter} onChange={(e) => setFilter(e.target.value)}>
             <option value="all">All</option>
@@ -57,6 +63,22 @@ export default function RequestList({ user }) {
             <option value="medium">Medium</option>
             <option value="low">Low</option>
           </select>
+          <label className="text-sm text-slate-700 ml-3">Status:</label>
+          <select className="border rounded-md px-2 py-1 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="all">All</option>
+            <option value="pending">Pending</option>
+            <option value="in-progress">In Progress</option>
+            <option value="resolved">Resolved</option>
+            <option value="fulfilled">Fulfilled</option>
+          </select>
+          <input 
+            className="border rounded-md px-2 py-1 text-sm ml-3" 
+            type="text" 
+            placeholder="Search location or keywords" 
+            value={search} 
+            onChange={(e) => setSearch(e.target.value)} 
+            style={{ minWidth: '180px' }}
+          />
         </div>
       </div>
 
