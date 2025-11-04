@@ -24,6 +24,12 @@ export async function getNearbyRequests(lat, lng, maxDistance = 50) {
     })
 
     if (error) {
+      // If function doesn't exist, fallback to client-side filtering
+      if (error.code === '42883' || error.message?.includes('does not exist')) {
+        console.warn('Database function get_nearby_requests not found. Using fallback method.')
+        console.warn('Please run sprint3-database-enhancements.sql in Supabase SQL Editor')
+        return await getPendingRequestsWithLocation()
+      }
       console.error('Error fetching nearby requests:', error)
       // Fallback: Fetch all pending requests and filter client-side
       return await getPendingRequestsWithLocation()
@@ -73,6 +79,12 @@ export async function updateVolunteerLocation(userId, location, lat, lng) {
     })
 
     if (error) {
+      // If function doesn't exist, use direct update
+      if (error.code === '42883' || error.message?.includes('does not exist')) {
+        console.warn('Database function update_volunteer_location not found. Using direct update.')
+        console.warn('Please run sprint3-database-enhancements.sql in Supabase SQL Editor')
+      }
+      
       // Fallback: Direct update
       const { error: updateError } = await supabase
         .from('profiles')
