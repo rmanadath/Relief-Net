@@ -107,14 +107,15 @@ export default function RequestList({ user }) {
                   </span>
                 </div>
               </div>
-              
               <div className="request-details text-sm text-slate-700 space-y-1">
                 <p><strong>Type:</strong> {request.aid_type}</p>
-                <p><strong>Contact:</strong> {request.contact}</p>
+                <p><strong>Status:</strong> {request.status}</p>
+                <p><strong>Priority:</strong> {(request.priority || 'medium')}</p>
                 <p><strong>Location:</strong> {request.location}</p>
                 <p><strong>Date:</strong> {new Date(request.created_at).toLocaleDateString()}</p>
+                <p><strong>Assigned To:</strong> {request.assigned_to || '—'}</p>
+                <p><strong>Contact:</strong> {request.contact}</p>
               </div>
-              
               <div className="request-description mt-2 text-slate-800">
                 <p>{request.description}</p>
               </div>
