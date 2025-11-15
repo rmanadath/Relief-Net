@@ -8,12 +8,31 @@ export default function App() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Simplified auth check - no profile fetching
+    const fetchUserProfile = async (userId) => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', userId)
+          .single()
+        
+        if (error) {
+          console.log('Profile fetch error:', error)
+          return 'user' // Default role if profile doesn't exist
+        }
+        return data?.role || 'user'
+      } catch (error) {
+        console.log('Profile fetch error:', error)
+        return 'user' // Default role on error
+      }
+    }
+
     const checkAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
         if (session?.user) {
-          setUser({ ...session.user, role: 'user' }) // Default role
+          const role = await fetchUserProfile(session.user.id)
+          setUser({ ...session.user, role })
         } else {
           setUser(null)
         }
@@ -28,9 +47,10 @@ export default function App() {
     checkAuth()
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
-        setUser({ ...session.user, role: 'user' }) // Default role
+        const role = await fetchUserProfile(session.user.id)
+        setUser({ ...session.user, role })
       } else {
         setUser(null)
       }

@@ -1,4 +1,4 @@
-# Relief-Net ğŸŒ
+ÿş# Relief-Net ğŸŒ
 
 _A disaster relief web platform designed to connect people in need with volunteers who can offer help._
 
@@ -151,7 +151,7 @@ app/
 
 ## ğŸ“„ License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSEfile for details.
 
 ---
 

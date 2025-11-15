@@ -3,6 +3,7 @@ import { supabase } from './supabase'
 import RequestForm from './RequestForm'
 import RequestList from './RequestList'
 import AdminPanel from './AdminPanel'
+import RouteOptimizer from './components/RouteOptimizer'
 import AssignmentDashboard from './AssignmentDashboard'
 
 export default function Dashboard({ user }) {
@@ -49,6 +50,16 @@ export default function Dashboard({ user }) {
         >
           View Requests
         </button>
+        <button 
+          className={`rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 ${
+            activeTab === 'routes' 
+              ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-300' 
+              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-gray-400'
+          }`}
+          onClick={() => setActiveTab('routes')}
+        >
+          Route Optimizer
+        </button>
         {isAdmin && (
           <>
             <button 
@@ -84,6 +95,9 @@ export default function Dashboard({ user }) {
         )}
         {activeTab === 'view' && (
           <RequestList key={refreshKey} user={user} />
+        )}
+        {activeTab === 'routes' && (
+          <RouteOptimizer user={user} />
         )}
         {activeTab === 'admin' && isAdmin && (
           <AdminPanel user={user} onUpdate={handleRequestSubmitted} />
