@@ -47,12 +47,21 @@ export default function Home() {
             >
               Request Help
             </Link>
-            <Link
-              href="#"
+            <button
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  const volunteerSection = document.getElementById('volunteer-info');
+                  if (volunteerSection) {
+                    volunteerSection.scrollIntoView({ behavior: 'smooth' });
+                  } else {
+                    alert('To become a volunteer:\n\n1. Sign up or log in to access the dashboard\n2. Contact an admin to set your role to "volunteer"\n3. Use the "Route Optimizer" tab to find and help with requests');
+                  }
+                }
+              }}
               className="bg-white text-indigo-600 px-8 py-3 rounded-lg font-semibold border-2 border-indigo-600 hover:bg-indigo-50 transition-colors"
             >
               Volunteer
-            </Link>
+            </button>
           </div>
         </div>
 
@@ -113,6 +122,42 @@ export default function Home() {
             <div>
               <div className="text-3xl font-bold text-indigo-600 mb-2">95%</div>
               <div className="text-gray-600">Success Rate</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Volunteer Info Section */}
+        <div id="volunteer-info" className="mt-20 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg shadow-lg p-12 text-white">
+          <div className="max-w-3xl mx-auto text-center">
+            <h2 className="text-3xl font-bold mb-6">Become a Volunteer</h2>
+            <p className="text-xl mb-8 text-indigo-100">
+              Help make a difference in your community by volunteering to deliver aid to those in need.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6">
+                <div className="text-2xl font-bold mb-2">1️⃣</div>
+                <h3 className="font-semibold mb-2">Sign Up</h3>
+                <p className="text-sm text-indigo-100">Create an account and log in to access the volunteer dashboard</p>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6">
+                <div className="text-2xl font-bold mb-2">2️⃣</div>
+                <h3 className="font-semibold mb-2">Get Verified</h3>
+                <p className="text-sm text-indigo-100">Contact an admin to set your role to "volunteer"</p>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6">
+                <div className="text-2xl font-bold mb-2">3️⃣</div>
+                <h3 className="font-semibold mb-2">Start Helping</h3>
+                <p className="text-sm text-indigo-100">Use the Route Optimizer to find nearby requests and optimize your delivery routes</p>
+              </div>
+            </div>
+            <div className="bg-white/20 backdrop-blur-sm rounded-lg p-6 text-left">
+              <h3 className="font-semibold mb-3">Volunteer Features:</h3>
+              <ul className="space-y-2 text-indigo-100">
+                <li>✅ Find nearby aid requests in your area</li>
+                <li>✅ Optimize delivery routes for multiple requests</li>
+                <li>✅ Track your volunteer activities</li>
+                <li>✅ Provide feedback on completed deliveries</li>
+              </ul>
             </div>
           </div>
         </div>
