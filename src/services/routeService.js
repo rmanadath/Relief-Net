@@ -1,5 +1,6 @@
 import { supabase } from '../supabase'
 import { optimizeRoute } from '../utils/routeOptimizer'
+import { logSupabaseError, logMapsApiError, logRouteOptimizationError } from './errorLogger'
 
 /**
  * Route Optimization Service
@@ -30,6 +31,13 @@ export async function getNearbyRequests(lat, lng, maxDistance = 50) {
         console.warn('Please run sprint3-database-enhancements.sql in Supabase SQL Editor')
         return await getPendingRequestsWithLocation()
       }
+      // Log Supabase error
+      await logSupabaseError(error, {
+        operation: 'get_nearby_requests',
+        lat,
+        lng,
+        maxDistance
+      })
       console.error('Error fetching nearby requests:', error)
       // Fallback: Fetch all pending requests and filter client-side
       return await getPendingRequestsWithLocation()
@@ -54,6 +62,9 @@ async function getPendingRequestsWithLocation() {
     .not('longitude', 'is', null)
 
   if (error) {
+    await logSupabaseError(error, {
+      operation: 'get_pending_requests_with_location'
+    })
     console.error('Error fetching pending requests:', error)
     return []
   }
@@ -96,6 +107,11 @@ export async function updateVolunteerLocation(userId, location, lat, lng) {
         .eq('id', userId)
 
       if (updateError) {
+        await logSupabaseError(updateError, {
+          operation: 'update_volunteer_location_fallback',
+          userId,
+          location
+        })
         console.error('Error updating volunteer location:', updateError)
         return false
       }
@@ -141,7 +157,31 @@ export async function createOptimizedRoute(volunteerId, requestIds, startLocatio
     }
 
     // Optimize route
-    const optimizedRoute = await optimizeRoute(validRequests, startLocation, method)
+    let optimizedRoute
+    try {
+      optimizedRoute = await optimizeRoute(validRequests, startLocation, method)
+    } catch (error) {
+      // Log Maps API errors specifically
+      if (error.apiError && error.apiType) {
+        await logMapsApiError(error, {
+          volunteerId,
+          requestIds,
+          method,
+          apiType: error.apiType,
+          statusCode: error.statusCode,
+          requestCount: validRequests.length
+        })
+      } else {
+        // Log other route optimization errors
+        await logRouteOptimizationError(error, {
+          volunteerId,
+          requestIds,
+          method,
+          requestCount: validRequests.length
+        })
+      }
+      throw error
+    }
 
     // Prepare data for database
     const requestOrder = optimizedRoute.requests.map(r => r.id)
@@ -168,6 +208,11 @@ export async function createOptimizedRoute(volunteerId, requestIds, startLocatio
       .single()
 
     if (insertError) {
+      await logSupabaseError(insertError, {
+        operation: 'create_optimized_route',
+        volunteerId,
+        requestIds
+      })
       throw new Error(`Failed to save route: ${insertError.message}`)
     }
 
@@ -197,6 +242,10 @@ export async function getVolunteerRoutes(volunteerId) {
     .order('created_at', { ascending: false })
 
   if (error) {
+    await logSupabaseError(error, {
+      operation: 'get_volunteer_routes',
+      volunteerId
+    })
     console.error('Error fetching volunteer routes:', error)
     return []
   }
@@ -225,6 +274,11 @@ export async function updateRouteStatus(routeId, status) {
     .eq('id', routeId)
 
   if (error) {
+    await logSupabaseError(error, {
+      operation: 'update_route_status',
+      routeId,
+      status
+    })
     console.error('Error updating route status:', error)
     return false
   }

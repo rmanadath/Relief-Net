@@ -3,6 +3,8 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { supabase } from './supabase';
+import { createOptimizedRoute } from './services/routeService';
+import { sortByTriageScore, calculateTriageScore, getTriageCategory, getTriageColor } from './utils/triageScorer';
 
 // Fix for default marker icons in Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -52,8 +54,8 @@ export default function AssignmentDashboard({ user }) {
       const { data, error } = await supabase
         .from('requests')
         .select('*')
-        .or('status.eq.open,status.eq.in-progress')
-        .order('priority', { ascending: false });
+        .or('status.eq.pending,status.eq.open,status.eq.in-progress')
+        .order('created_at', { ascending: false });
       
       if (error) throw error;
       
@@ -62,7 +64,10 @@ export default function AssignmentDashboard({ user }) {
         ? data 
         : data.filter(req => !req.assigned_to || req.assigned_to === user.id);
       
-      setRequests(filteredData || []);
+      // Sort by triage score (highest priority first)
+      const sortedRequests = sortByTriageScore(filteredData || []);
+      
+      setRequests(sortedRequests);
       
       // Update map bounds to show all requests
       if (filteredData?.length > 0) {
@@ -139,38 +144,41 @@ export default function AssignmentDashboard({ user }) {
     try {
       // Get volunteer's current location (or use a default if not available)
       const volunteerLocation = {
-        lat: selectedVolunteer.latitude || mapCenter[0],
-        lng: selectedVolunteer.longitude || mapCenter[1]
+        lat: selectedVolunteer.volunteer_latitude || selectedVolunteer.latitude || mapCenter[0],
+        lng: selectedVolunteer.volunteer_longitude || selectedVolunteer.longitude || mapCenter[1]
       };
 
-      // Prepare request locations
-      const requestLocations = selectedRequests.map(req => ({
-        id: req.id,
-        name: req.name,
-        lat: req.latitude,
-        lng: req.longitude,
-        priority: req.priority || 'medium'
-      }));
+      // Use routeService to optimize route
+      const route = await createOptimizedRoute(
+        selectedVolunteer.id,
+        selectedRequests.map(r => r.id),
+        volunteerLocation,
+        'nearest' // Can be changed to 'openrouteservice' or 'googlemaps' if API keys available
+      );
 
-      // Call the optimization function
-      const { data, error } = await supabase.functions.invoke('optimize-route', {
-        body: {
-          volunteer: {
-            id: selectedVolunteer.id,
-            ...volunteerLocation
-          },
-          requests: requestLocations
+      // Format route data for map display
+      const routeData = {
+        route: route.waypoints.map(wp => ({
+          id: wp.request_id,
+          name: wp.name,
+          latitude: wp.lat,
+          longitude: wp.lng,
+          location: wp.location
+        })),
+        distance: route.distance,
+        duration: route.duration,
+        volunteer: {
+          id: selectedVolunteer.id,
+          ...volunteerLocation
         }
-      });
-
-      if (error) throw error;
+      };
       
       // Update the optimized route and map view
-      setOptimizedRoute(data);
+      setOptimizedRoute(routeData);
       
       // Update map bounds to show the entire route
-      if (data?.route?.length > 0) {
-        const routeCoords = data.route.map(point => ({
+      if (routeData.route.length > 0) {
+        const routeCoords = routeData.route.map(point => ({
           lat: point.latitude,
           lng: point.longitude
         }));
@@ -229,14 +237,14 @@ export default function AssignmentDashboard({ user }) {
 
   // Calculate route summary
   const routeSummary = optimizedRoute ? {
-    totalDistance: (optimizedRoute.distance / 1000).toFixed(1) + ' km',
+    totalDistance: optimizedRoute.distance ? optimizedRoute.distance.toFixed(1) + ' km' : 'N/A',
     estimatedTime: formatDuration(optimizedRoute.duration),
-    stops: optimizedRoute.route.length,
-    waypoints: optimizedRoute.route.map((req, index) => ({
+    stops: optimizedRoute.route?.length || 0,
+    waypoints: optimizedRoute.route?.map((req, index) => ({
       requestId: req.id,
       position: index + 1,
       ...req
-    }))
+    })) || []
   } : null;
 
   // Helper function to format duration
@@ -258,8 +266,10 @@ export default function AssignmentDashboard({ user }) {
     const coords = [];
     
     // Add volunteer's location as starting point
-    if (selectedVolunteer?.latitude && selectedVolunteer?.longitude) {
-      coords.push([selectedVolunteer.latitude, selectedVolunteer.longitude]);
+    const volLat = selectedVolunteer?.volunteer_latitude || selectedVolunteer?.latitude;
+    const volLng = selectedVolunteer?.volunteer_longitude || selectedVolunteer?.longitude;
+    if (volLat && volLng) {
+      coords.push([volLat, volLng]);
     }
     
     // Add all request locations

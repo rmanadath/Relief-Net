@@ -131,10 +131,19 @@ export async function optimizeRouteWithOpenRouteService(requests, startLocation)
     })
     
     if (!response.ok) {
-      throw new Error(`OpenRouteService API error: ${response.statusText}`)
+      const errorText = await response.text().catch(() => response.statusText)
+      const error = new Error(`OpenRouteService API error: ${response.status} ${errorText}`)
+      error.apiError = true
+      error.apiType = 'openrouteservice'
+      error.statusCode = response.status
+      throw error
     }
     
     const data = await response.json()
+    
+    if (!data.routes || !data.routes[0]) {
+      throw new Error('OpenRouteService returned invalid route data')
+    }
     
     // Extract optimized order from the response
     // OpenRouteService returns the route in optimal order
@@ -151,8 +160,12 @@ export async function optimizeRouteWithOpenRouteService(requests, startLocation)
       geometry: route.geometry
     }
   } catch (error) {
+    // Re-throw API errors so they can be logged by routeService
+    if (error.apiError) {
+      throw error
+    }
     console.error('OpenRouteService optimization failed:', error)
-    // Fallback to Nearest Neighbor
+    // Fallback to Nearest Neighbor for non-API errors
     return optimizeRouteNearestNeighbor(requests, startLocation)
   }
 }
@@ -188,11 +201,23 @@ export async function optimizeRouteWithGoogleMaps(requests, startLocation) {
     const data = await response.json()
     
     if (data.status !== 'OK') {
-      throw new Error(`Google Maps API error: ${data.status}`)
+      const error = new Error(`Google Maps API error: ${data.status}${data.error_message ? ' - ' + data.error_message : ''}`)
+      error.apiError = true
+      error.apiType = 'googlemaps'
+      error.statusCode = data.status
+      throw error
+    }
+    
+    if (!data.routes || !data.routes[0]) {
+      throw new Error('Google Maps returned invalid route data')
     }
     
     const route = data.routes[0]
     const optimizedWaypointOrder = route.waypoint_order
+    
+    if (!optimizedWaypointOrder || optimizedWaypointOrder.length === 0) {
+      throw new Error('Google Maps returned empty waypoint order')
+    }
     
     // Reorder requests based on optimized waypoint order
     const optimizedRequests = optimizedWaypointOrder.map(index => requests[index])
