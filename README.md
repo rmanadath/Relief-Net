@@ -1,4 +1,4 @@
-��# Relief-Net 🌐
+﻿# Relief-Net 🌐
 
 _A disaster relief web platform designed to connect people in need with volunteers who can offer help._
 
@@ -15,19 +15,21 @@ Our mission is to make disaster relief faster, fairer, and more efficient throug
 
 * ✅ User registration & login with Supabase Auth
 * ✅ Post urgent aid requests (food, medicine, shelter)
-* ✅ View and filter requests by type
+* ✅ View and filter requests by type, priority, and status
 * ✅ Real-time request submission and display
-* 🔄 Fair Triage Scorer (planned)
-* 🔄 Aid Route Optimizer (planned)
+* ✅ Admin panel for managing requests
+* ✅ Route optimization for volunteers
+* ✅ Triage scoring system
+* ✅ Feedback system
+* ✅ Analytics and metrics
 
 ---
 
 ## 🛠️ Tech Stack
 
-* **Frontend:** Next.js 16 with React 19
+* **Frontend:** React with Next.js
 * **Database & Auth:** Supabase (PostgreSQL + Auth)
 * **Styling:** Tailwind CSS
-* **Forms:** React Hook Form
 * **Deployment:** Vercel (frontend), Supabase (backend)
 * **Version Control:** Git & GitHub
 
@@ -58,35 +60,24 @@ npm install
 
 3. **Set up environment variables:**
 
-Create a `.env.local` file in the root directory:
+Create a `.env` file in the root directory:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+REACT_APP_SUPABASE_URL=your_supabase_project_url
+REACT_APP_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
 4. **Set up Supabase database:**
 
-Create a table called `requests` with the following schema:
-
-```sql
-CREATE TABLE requests (
-  id SERIAL PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id),
-  name TEXT NOT NULL,
-  contact TEXT NOT NULL,
-  aid_type TEXT NOT NULL,
-  description TEXT NOT NULL,
-  location TEXT NOT NULL,
-  status TEXT DEFAULT 'open',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-```
+Run the SQL scripts in Supabase SQL Editor:
+- `sprint2-database-enhancements.sql` - For Sprint 2 features
+- `sprint3-database-enhancements.sql` - For Sprint 3 route optimization
+- `sprint4-database-enhancements.sql` - For Sprint 4 analytics and feedback
 
 5. **Run the application:**
 
 ```bash
-npm run dev
+npm start
 ```
 
 The app will open at `http://localhost:3000`
@@ -95,69 +86,91 @@ The app will open at `http://localhost:3000`
 
 ## 📋 User Stories Implemented
 
-### 1. Post a Request (Person in Need)
-
+### Sprint 1: Basic Request System
 * ✅ Users can create requests with name, contact, aid type, description, and location
 * ✅ Requests are stored in Supabase database
-* ✅ Confirmation message appears after submission
-* ✅ Form validation with React Hook Form
-* ✅ Modern UI with Tailwind CSS
+* ✅ Users can view their submitted requests
 
-### 2. View Requests (Volunteer)
+### Sprint 2: Database Enhancements
+* ✅ Request status tracking (pending, in-progress, resolved, fulfilled)
+* ✅ Priority system (low, medium, high)
+* ✅ Admin role management
+* ✅ Request assignment to volunteers
 
-* ✅ Volunteers can view a list of all open requests
-* ✅ Requests display key details (type, location, contact, description)
-* ✅ Volunteers can filter by category (food, medicine, shelter, etc.)
-* ✅ Real-time updates when new requests are posted
+### Sprint 3: Route Optimization
+* ✅ Geolocation support (latitude, longitude, address)
+* ✅ Route optimization algorithms (Nearest Neighbor, OpenRouteService, Google Maps)
+* ✅ Volunteer location tracking
+* ✅ Optimized route visualization
+* ✅ Triage scoring system
 
----
-
-## 🏗️ Project Structure
-
-```
-app/
-├── layout.tsx           # Root layout with metadata
-├── page.tsx            # Home page
-├── post-request/
-│   └── page.tsx        # Request posting form
-├── globals.css         # Global styles
-└── favicon.ico         # App icon
-
-```
+### Sprint 4: Analytics & Feedback
+* ✅ Automatic status transition tracking
+* ✅ Delivery completion timestamps
+* ✅ Feedback system (ratings and comments)
+* ✅ Analytics and metrics
+* ✅ Error logging
 
 ---
 
-## 🎯 Next Steps (Sprint 2)
+## 📁 Project Structure
 
-* Implement Fair Triage Scorer algorithm
-* Add route optimization for volunteers
-* Integrate Google Maps API
-* Add request status management
-* Implement volunteer assignment system
-* Add authentication system
-* Create volunteer dashboard
+```
+Relief-Net/
+├── src/
+│   ├── components/        # React components
+│   │   └── RouteOptimizer.js
+│   ├── services/          # API services
+│   │   ├── routeService.js
+│   │   ├── analyticsService.js
+│   │   ├── errorLogger.js
+│   │   └── feedbackService.js
+│   ├── utils/            # Utility functions
+│   │   ├── routeOptimizer.js
+│   │   └── triageScorer.js
+│   ├── App.js            # Main app component
+│   ├── Dashboard.js      # Dashboard component
+│   ├── Auth.js           # Authentication
+│   ├── RequestForm.js    # Request posting form
+│   ├── RequestList.js   # Request list view
+│   ├── AdminPanel.js     # Admin panel
+│   └── AssignmentDashboard.js  # Volunteer assignment
+├── sprint2-database-enhancements.sql
+├── sprint3-database-enhancements.sql
+├── sprint4-database-enhancements.sql
+└── README.md
+```
+
+---
+
+## 🔐 Database Schema
+
+### Main Tables
+- `requests` - Aid requests with status, priority, location
+- `profiles` - User profiles with roles (user, admin, volunteer)
+- `feedback` - Volunteer feedback on completed requests
+- `delivery_logs` - Status change tracking for analytics
+- `error_logs` - Error tracking for debugging
+- `optimized_routes` - Stored optimized routes
 
 ---
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+This is a class project. For contributions, please contact the project maintainers.
 
 ---
 
-## 📄 License
+## 📝 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSEfile for details.
+This project is for educational purposes.
 
 ---
 
-## 🙏 Acknowledgments
+## 👥 Team
 
-* Built with [Next.js](https://nextjs.org/)
-* Database powered by [Supabase](https://supabase.com/)
-* Styled with [Tailwind CSS](https://tailwindcss.com/)
-* Forms handled by [React Hook Form](https://react-hook-form.com/)
+- **Haroon** - Backend/Automation
+- **Rida** - Frontend/Dashboard
+- **Obaidullah** - Admin Controls/Triage
+- **Abbad** - UI/QA
+- **Rayhaan** - DevOps/Deployment
