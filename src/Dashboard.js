@@ -3,7 +3,10 @@ import { supabase } from './supabase'
 import RequestForm from './RequestForm'
 import RequestList from './RequestList'
 import AdminPanel from './AdminPanel'
+<<<<<<< HEAD
 import RouteOptimizer from './components/RouteOptimizer'
+=======
+>>>>>>> 36cfad8 (feat: Implement Volunteer Assignment Dashboard for Sprint 3)
 import AssignmentDashboard from './AssignmentDashboard'
 
 export default function Dashboard({ user }) {
@@ -95,9 +98,6 @@ export default function Dashboard({ user }) {
         )}
         {activeTab === 'view' && (
           <RequestList key={refreshKey} user={user} />
-        )}
-        {activeTab === 'routes' && (
-          <RouteOptimizer user={user} />
         )}
         {activeTab === 'admin' && isAdmin && (
           <AdminPanel user={user} onUpdate={handleRequestSubmitted} />

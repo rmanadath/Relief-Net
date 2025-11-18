@@ -33,7 +33,7 @@ export default function RequestList({ user }) {
   const filteredRequests = requests.filter(request => {
     const typeOk = filter === 'all' || request.aid_type === filter
     const priorityOk = priorityFilter === 'all' || (request.priority || 'medium') === priorityFilter
-    const statusOk = statusFilter === 'all' || (request.status || 'pending') === statusFilter
+    const statusOk = statusFilter === 'all' || (request.status || 'open') === statusFilter
     const searchOk = search.trim() === '' ||
       (request.location && request.location.toLowerCase().includes(search.trim().toLowerCase())) ||
       (request.description && request.description.toLowerCase().includes(search.trim().toLowerCase()))
@@ -66,9 +66,14 @@ export default function RequestList({ user }) {
           <label className="text-sm text-slate-700 ml-3">Status:</label>
           <select className="border rounded-md px-2 py-1 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="all">All</option>
+<<<<<<< HEAD
             <option value="pending">Pending</option>
             <option value="in-progress">In Progress</option>
             <option value="resolved">Resolved</option>
+=======
+            <option value="open">Open</option>
+            <option value="in-progress">In Progress</option>
+>>>>>>> 9f92cae (feat: Implement Volunteer Assignment Dashboard for Sprint 3)
             <option value="fulfilled">Fulfilled</option>
           </select>
           <input 
@@ -76,7 +81,11 @@ export default function RequestList({ user }) {
             type="text" 
             placeholder="Search location or keywords" 
             value={search} 
+<<<<<<< HEAD
             onChange={(e) => setSearch(e.target.value)} 
+=======
+            onChange={e => setSearch(e.target.value)} 
+>>>>>>> 9f92cae (feat: Implement Volunteer Assignment Dashboard for Sprint 3)
             style={{ minWidth: '180px' }}
           />
         </div>
