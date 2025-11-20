@@ -78,27 +78,30 @@ npm install
 
 3. **Set up environment variables:**
 
-Create a `.env` file in the root directory:
+**⚠️ IMPORTANT:** Create a `.env.local` file in the root directory (same level as `package.json`):
 
 ```env
-REACT_APP_SUPABASE_URL=your_supabase_project_url
-REACT_APP_SUPABASE_ANON_KEY=your_supabase_anon_key
+NEXT_PUBLIC_SUPABASE_URL=https://jnsjakpcqoilbezhexce.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impuc2pha3BjcW9pbGJlemhleGNlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEwNzE1NjgsImV4cCI6MjA3NjY0NzU2OH0.kvWRxdr_0QctvUGPwaGdq016fYqNKaCfAk9smi0NcVQ
 ```
+
+**Note:** The `.env.local` file is NOT in the repository (it's gitignored). You MUST create it manually! See `SETUP-GUIDE.md` for detailed instructions.
 
 4. **Set up Supabase database:**
 
-Run the SQL scripts in Supabase SQL Editor:
-- `sprint2-database-enhancements.sql` - For Sprint 2 features
-- `sprint3-database-enhancements.sql` - For Sprint 3 route optimization
-- `sprint4-database-enhancements.sql` - For Sprint 4 analytics and feedback
+Run these SQL scripts in Supabase SQL Editor (in order):
+1. `database-setup.sql` - Creates base tables and policies
+2. `sprint3-database-updates.sql` - Adds Sprint 3 features (route_order, assigned_volunteer, feedback table)
 
 5. **Run the application:**
 
 ```bash
-npm start
+npm run dev
 ```
 
 The app will open at `http://localhost:3000`
+
+**Troubleshooting:** If you get errors, see `SETUP-GUIDE.md` for common fixes.
 
 ---
 
