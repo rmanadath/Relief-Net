@@ -61,36 +61,39 @@ export default function RequestForm({ user, onRequestSubmitted }) {
   }
 
   return (
-    <div className="request-form">
-      <h3>Post Aid Request</h3>
+    <div className="request-form bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+      <h3 className="text-2xl font-bold text-slate-900 mb-6">Post Aid Request</h3>
       <form onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label>Name:</label>
+        <div className="form-group mb-5">
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Name:</label>
           <input
             type="text"
             value={formData.name}
             onChange={(e) => setFormData({...formData, name: e.target.value})}
+            className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
             required
           />
           {errors.name && <div className="field-error">{errors.name}</div>}
         </div>
         
-        <div className="form-group">
-          <label>Contact:</label>
+        <div className="form-group mb-5">
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Contact:</label>
           <input
             type="text"
             value={formData.contact}
             onChange={(e) => setFormData({...formData, contact: e.target.value})}
+            className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
             required
           />
           {errors.contact && <div className="field-error">{errors.contact}</div>}
         </div>
         
-        <div className="form-group">
-          <label>Aid Type:</label>
+        <div className="form-group mb-5">
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Aid Type:</label>
           <select
             value={formData.aid_type}
             onChange={(e) => setFormData({...formData, aid_type: e.target.value})}
+            className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
           >
             <option value="food">Food</option>
             <option value="medicine">Medicine</option>
@@ -100,11 +103,12 @@ export default function RequestForm({ user, onRequestSubmitted }) {
           </select>
         </div>
 
-        <div className="form-group">
-          <label>Priority:</label>
+        <div className="form-group mb-5">
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Priority:</label>
           <select
             value={formData.priority}
             onChange={(e) => setFormData({...formData, priority: e.target.value})}
+            className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
           >
             <option value="high">High</option>
             <option value="medium">Medium</option>
@@ -113,28 +117,34 @@ export default function RequestForm({ user, onRequestSubmitted }) {
           {errors.priority && <div className="field-error">{errors.priority}</div>}
         </div>
         
-        <div className="form-group">
-          <label>Description:</label>
+        <div className="form-group mb-5">
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Description:</label>
           <textarea
             value={formData.description}
             onChange={(e) => setFormData({...formData, description: e.target.value})}
+            className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors min-h-[100px]"
             required
           />
           {errors.description && <div className="field-error">{errors.description}</div>}
         </div>
         
-        <div className="form-group">
-          <label>Location:</label>
+        <div className="form-group mb-6">
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Location:</label>
           <input
             type="text"
             value={formData.location}
             onChange={(e) => setFormData({...formData, location: e.target.value})}
+            className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
             required
           />
           {errors.location && <div className="field-error">{errors.location}</div>}
         </div>
         
-        <button type="submit" disabled={loading} className="submit-btn">
+        <button 
+          type="submit" 
+          disabled={loading} 
+          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           {loading ? 'Submitting...' : 'Submit Request'}
         </button>
       </form>
