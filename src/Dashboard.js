@@ -3,6 +3,11 @@ import { supabase } from './supabase'
 import RequestForm from './RequestForm'
 import RequestList from './RequestList'
 import AdminPanel from './AdminPanel'
+<<<<<<< HEAD
+import RouteOptimizer from './components/RouteOptimizer'
+=======
+>>>>>>> 36cfad8 (feat: Implement Volunteer Assignment Dashboard for Sprint 3)
+import AssignmentDashboard from './AssignmentDashboard'
 
 export default function Dashboard({ user }) {
   const [activeTab, setActiveTab] = useState('post')
@@ -59,6 +64,16 @@ export default function Dashboard({ user }) {
         >
           View Requests
         </button>
+        <button 
+          className={`rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 ${
+            activeTab === 'routes' 
+              ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-300' 
+              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-gray-400'
+          }`}
+          onClick={() => setActiveTab('routes')}
+        >
+          Route Optimizer
+        </button>
         {isAdmin && (
           <button 
             className={`rounded-lg px-5 py-2.5 text-sm font-semibold transition-all duration-200 ${
@@ -85,6 +100,9 @@ export default function Dashboard({ user }) {
         )}
         {activeTab === 'admin' && isAdmin && (
           <AdminPanel user={user} onUpdate={handleRequestSubmitted} />
+        )}
+        {activeTab === 'assign' && isAdmin && (
+          <AssignmentDashboard user={user} />
         )}
       </main>
     </div>

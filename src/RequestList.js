@@ -7,6 +7,8 @@ export default function RequestList({ user }) {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [search, setSearch] = useState('')
   const isAdmin = user.role === 'admin'
 
   useEffect(() => {
@@ -32,7 +34,11 @@ export default function RequestList({ user }) {
   const filteredRequests = requests.filter(request => {
     const typeOk = filter === 'all' || request.aid_type === filter
     const priorityOk = priorityFilter === 'all' || (request.priority || 'medium') === priorityFilter
-    return typeOk && priorityOk
+    const statusOk = statusFilter === 'all' || (request.status || 'open') === statusFilter
+    const searchOk = search.trim() === '' ||
+      (request.location && request.location.toLowerCase().includes(search.trim().toLowerCase())) ||
+      (request.description && request.description.toLowerCase().includes(search.trim().toLowerCase()))
+    return typeOk && priorityOk && statusOk && searchOk
   })
 
   if (loading) return <div className="loading text-sm text-slate-600">Loading requests...</div>

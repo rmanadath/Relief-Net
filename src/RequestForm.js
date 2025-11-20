@@ -8,7 +8,10 @@ export default function RequestForm({ user, onRequestSubmitted }) {
     aid_type: 'food',
     priority: 'medium',
     description: '',
-    location: ''
+    location: '',
+    address: '',
+    latitude: '',
+    longitude: ''
   })
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
@@ -39,9 +42,18 @@ export default function RequestForm({ user, onRequestSubmitted }) {
     if (!validate()) return
     setLoading(true)
     
+    // Prepare data with coordinates (convert to numbers if provided)
+    const requestData = {
+      ...formData,
+      user_id: user.id,
+      address: formData.address || formData.location,
+      latitude: formData.latitude ? parseFloat(formData.latitude) : null,
+      longitude: formData.longitude ? parseFloat(formData.longitude) : null
+    }
+    
     const { error } = await supabase
       .from('requests')
-      .insert([{ ...formData, user_id: user.id }])
+      .insert([requestData])
     
     if (error) {
       setMessage('Error: ' + error.message)
@@ -53,7 +65,10 @@ export default function RequestForm({ user, onRequestSubmitted }) {
         aid_type: 'food',
         priority: 'medium',
         description: '',
-        location: ''
+        location: '',
+        address: '',
+        latitude: '',
+        longitude: ''
       })
       onRequestSubmitted()
     }
