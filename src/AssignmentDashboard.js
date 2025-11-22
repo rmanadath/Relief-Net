@@ -452,7 +452,7 @@ export default function AssignmentDashboard({ user }) {
                     </div>
                   </Popup>
                 </Marker>
-              )}
+              ))}
               
               <MapUpdater center={mapCenter} bounds={mapBounds} />
             </MapContainer>
