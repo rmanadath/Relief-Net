@@ -5,7 +5,9 @@ import {
   createOptimizedRoute, 
   updateVolunteerLocation,
   getVolunteerRoutes,
-  updateRouteStatus 
+  updateRouteStatus,
+  geocodeExistingRequests,
+  geocodeAddress
 } from '../services/routeService'
 
 export default function RouteOptimizer({ user }) {
@@ -51,28 +53,35 @@ export default function RouteOptimizer({ user }) {
   }
 
   const handleSaveLocation = async () => {
-    if (!volunteerLocation.address || !volunteerLocation.lat || !volunteerLocation.lng) {
-      setError('Please provide address and coordinates')
+    if (!volunteerLocation.address?.trim()) {
+      setError('Please enter your address')
       return
     }
 
+    setLoading(true)
+    setError('')
+
+    // Save address - coordinates will be automatically geocoded
     const success = await updateVolunteerLocation(
       user.id,
-      volunteerLocation.address,
-      parseFloat(volunteerLocation.lat),
-      parseFloat(volunteerLocation.lng)
+      volunteerLocation.address.trim(),
+      volunteerLocation.lat ? parseFloat(volunteerLocation.lat) : null,
+      volunteerLocation.lng ? parseFloat(volunteerLocation.lng) : null
     )
 
     if (success) {
       setError('')
-      alert('Location saved successfully!')
+      alert('Location saved successfully! Coordinates were automatically calculated from your address.')
+      await loadVolunteerLocation()
     } else {
       setError('Failed to save location')
     }
+    
+    setLoading(false)
   }
 
   const handleFindNearbyRequests = async () => {
-    if (!volunteerLocation.lat || !volunteerLocation.lng) {
+    if (!volunteerLocation.address) {
       setError('Please set your location first')
       return
     }
@@ -81,14 +90,117 @@ export default function RouteOptimizer({ user }) {
     setError('')
 
     try {
-      const requests = await getNearbyRequests(
-        parseFloat(volunteerLocation.lat),
-        parseFloat(volunteerLocation.lng),
-        50 // 50km radius
-      )
+      // Reload location to make sure we have latest coordinates
+      await loadVolunteerLocation()
+      
+      // If we still don't have coordinates, try to geocode the address
+      if (!volunteerLocation.lat || !volunteerLocation.lng) {
+        setError('Finding coordinates for your address...')
+        const geocoded = await geocodeAddress(volunteerLocation.address)
+        if (geocoded.lat && geocoded.lng) {
+          // Save the geocoded coordinates
+          await updateVolunteerLocation(
+            user.id,
+            volunteerLocation.address,
+            geocoded.lat,
+            geocoded.lng
+          )
+          await loadVolunteerLocation()
+        } else {
+          setError('Could not find coordinates for your address. Please try a more specific address.')
+          setLoading(false)
+          return
+        }
+      }
+
+      const lat = parseFloat(volunteerLocation.lat)
+      const lng = parseFloat(volunteerLocation.lng)
+      
+      if (isNaN(lat) || isNaN(lng)) {
+        setError('Invalid coordinates. Please save your location again.')
+        setLoading(false)
+        return
+      }
+
+      // First, make sure all requests have coordinates by geocoding them
+      // Don't filter by status - geocode all requests that need it
+      const { data: requestsNeedingGeocode } = await supabase
+        .from('requests')
+        .select('id, location, address, latitude, longitude, status')
+        .or('latitude.is.null,longitude.is.null')
+      
+      if (requestsNeedingGeocode && requestsNeedingGeocode.length > 0) {
+        // Filter to only geocode requests with 'open' or 'pending' status
+        const requestsToGeocode = requestsNeedingGeocode.filter(r => 
+          r.status === 'open' || r.status === 'pending'
+        )
+        
+        if (requestsToGeocode.length > 0) {
+          setError(`Adding location data to ${requestsToGeocode.length} request(s)... This will take about ${requestsToGeocode.length} second(s).`)
+          
+          const geocodeResult = await geocodeExistingRequests()
+          console.log('Geocoding result:', geocodeResult)
+          
+          if (geocodeResult.success) {
+            if (geocodeResult.geocoded > 0) {
+              setError(`✓ Added location data to ${geocodeResult.geocoded} out of ${geocodeResult.total} request(s). Finding nearby requests...`)
+              // Wait a moment for database to update
+              await new Promise(resolve => setTimeout(resolve, 1000))
+            } else {
+              // Show specific errors if available
+              const errorMsg = geocodeResult.errors && geocodeResult.errors.length > 0
+                ? `Could not geocode requests: ${geocodeResult.errors.slice(0, 2).join('; ')}`
+                : 'Could not add location data. Check that addresses are valid (e.g., "New York, NY" instead of just "New York").'
+              setError(errorMsg)
+              // Still try to find requests - maybe some already have coordinates
+            }
+          } else {
+            setError(`Error geocoding: ${geocodeResult.message}`)
+            // Still try to find requests
+          }
+        }
+      }
+      
+      const requests = await getNearbyRequests(lat, lng, 50) // 50km radius
+      console.log('Found nearby requests:', requests.length)
+      
+      if (requests.length === 0) {
+        // Check if there are any requests at all
+        const { data: allRequests } = await supabase
+          .from('requests')
+          .select('id, location, address, status, latitude, longitude')
+          .in('status', ['open', 'pending'])
+        
+        console.log('All requests:', allRequests)
+        
+        if (allRequests && allRequests.length > 0) {
+          const withoutCoords = allRequests.filter(r => !r.latitude || !r.longitude)
+          const withCoords = allRequests.filter(r => r.latitude && r.longitude)
+          
+          console.log(`Requests without coords: ${withoutCoords.length}, with coords: ${withCoords.length}`)
+          
+          if (withoutCoords.length > 0) {
+            // Show which requests need geocoding
+            const locations = withoutCoords.map(r => r.location || r.address || 'unknown').slice(0, 3)
+            setError(`Found ${allRequests.length} request(s) but ${withoutCoords.length} still need location data (${locations.join(', ')}). Make sure addresses are specific (e.g., "New York, NY" not just "New York"). Click "Find Nearby Requests" again.`)
+          } else if (withCoords.length > 0) {
+            // All have coordinates but none are nearby - show their locations
+            const locations = withCoords.map(r => r.location || r.address || 'unknown').slice(0, 3)
+            setError(`No requests found within 50km. Found ${withCoords.length} request(s) with location data (${locations.join(', ')}), but they're all further away from your location (${volunteerLocation.address}). Try creating a request in your area or changing your location.`)
+          } else {
+            setError(`Found ${allRequests.length} request(s) but none have valid location data.`)
+          }
+        } else {
+          setError('No requests found. Create a request first, then try again.')
+        }
+      } else {
+        setError('')
+      }
+      
       setNearbyRequests(requests)
     } catch (err) {
-      setError('Failed to fetch nearby requests: ' + err.message)
+      setError('Failed to fetch nearby requests: ' + (err.message || 'Unknown error'))
+      setNearbyRequests([])
     } finally {
       setLoading(false)
     }
@@ -100,8 +212,14 @@ export default function RouteOptimizer({ user }) {
       return
     }
 
-    if (!volunteerLocation.lat || !volunteerLocation.lng) {
+    if (!volunteerLocation.address) {
       setError('Please set your location first')
+      return
+    }
+
+    // If we have coordinates, use them. Otherwise, we'd need to geocode first
+    if (!volunteerLocation.lat || !volunteerLocation.lng) {
+      setError('Location coordinates needed. In production, this would be geocoded from your address automatically.')
       return
     }
 
@@ -147,47 +265,53 @@ export default function RouteOptimizer({ user }) {
         <div className="space-y-3">
           <input
             type="text"
-            placeholder="Your address/location"
+            placeholder="Enter your address (e.g., 123 Main St, New York, NY)"
             value={volunteerLocation.address}
             onChange={(e) => setVolunteerLocation({...volunteerLocation, address: e.target.value})}
             className="w-full p-2 border rounded"
           />
-          <div className="flex gap-2">
-            <input
-              type="number"
-              step="any"
-              placeholder="Latitude"
-              value={volunteerLocation.lat}
-              onChange={(e) => setVolunteerLocation({...volunteerLocation, lat: e.target.value})}
-              className="flex-1 p-2 border rounded"
-            />
-            <input
-              type="number"
-              step="any"
-              placeholder="Longitude"
-              value={volunteerLocation.lng}
-              onChange={(e) => setVolunteerLocation({...volunteerLocation, lng: e.target.value})}
-              className="flex-1 p-2 border rounded"
-            />
-          </div>
           <button
             onClick={handleSaveLocation}
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+            disabled={loading}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
           >
-            Save Location
+            {loading ? 'Saving...' : 'Save Location'}
           </button>
+          <p className="text-xs text-gray-500">
+            Enter your address. Coordinates will be automatically calculated from your address.
+          </p>
         </div>
       </div>
 
       {/* Find Nearby Requests */}
       <div className="mb-6">
         <button
-          onClick={handleFindNearbyRequests}
+          onClick={async () => {
+            // First, try to geocode any requests that need it, then find nearby
+            setLoading(true)
+            setError('')
+            
+            // Auto-geocode existing requests in background (don't wait if it takes long)
+            geocodeExistingRequests().then(result => {
+              if (result.success && result.geocoded > 0) {
+                console.log(`Auto-geocoded ${result.geocoded} requests`)
+              }
+            }).catch(err => {
+              console.warn('Background geocoding failed:', err)
+            })
+            
+            // Then find nearby requests
+            await handleFindNearbyRequests()
+            setLoading(false)
+          }}
           disabled={loading}
           className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 disabled:opacity-50"
         >
-          {loading ? 'Loading...' : 'Find Nearby Requests'}
+          {loading ? 'Finding Requests...' : 'Find Nearby Requests'}
         </button>
+        <p className="text-xs text-gray-500 mt-2">
+          This will automatically find requests near your location and add location data to any requests that need it.
+        </p>
       </div>
 
       {/* Nearby Requests List */}

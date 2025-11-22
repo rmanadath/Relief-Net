@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from './supabase'
+import { geocodeAddress } from './services/routeService'
 
 export default function RequestForm({ user, onRequestSubmitted }) {
   const [formData, setFormData] = useState({
@@ -41,14 +42,39 @@ export default function RequestForm({ user, onRequestSubmitted }) {
     e.preventDefault()
     if (!validate()) return
     setLoading(true)
+    setMessage('Submitting request and finding location...')
     
-    // Prepare data with coordinates (convert to numbers if provided)
+    // Get address
+    const address = formData.address || formData.location
+    
+    // Auto-geocode if coordinates not provided
+    let latitude = formData.latitude ? parseFloat(formData.latitude) : null
+    let longitude = formData.longitude ? parseFloat(formData.longitude) : null
+    
+    if ((!latitude || !longitude) && address) {
+      try {
+        setMessage('Finding coordinates for your address...')
+        const geocoded = await geocodeAddress(address)
+        if (geocoded.lat && geocoded.lng) {
+          latitude = geocoded.lat
+          longitude = geocoded.lng
+          console.log('Geocoded address to:', latitude, longitude)
+        } else {
+          console.warn('Could not geocode address:', address)
+        }
+      } catch (error) {
+        console.error('Geocoding error:', error)
+        // Continue without coordinates - they can be added later
+      }
+    }
+    
+    // Prepare data with coordinates
     const requestData = {
       ...formData,
       user_id: user.id,
-      address: formData.address || formData.location,
-      latitude: formData.latitude ? parseFloat(formData.latitude) : null,
-      longitude: formData.longitude ? parseFloat(formData.longitude) : null
+      address: address,
+      latitude: latitude,
+      longitude: longitude
     }
     
     const { error } = await supabase
@@ -58,7 +84,11 @@ export default function RequestForm({ user, onRequestSubmitted }) {
     if (error) {
       setMessage('Error: ' + error.message)
     } else {
-      setMessage('Request submitted successfully!')
+      if (latitude && longitude) {
+        setMessage('Request submitted successfully! Location coordinates found automatically.')
+      } else {
+        setMessage('Request submitted successfully! (Note: Coordinates could not be automatically determined)')
+      }
       setFormData({
         name: '',
         contact: '',
