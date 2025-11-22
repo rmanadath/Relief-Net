@@ -5,7 +5,7 @@ dotenv.config();
 
 const app = express();
 app.use(express.json());
-app.use(cors({ origin: "*" })); // tighten later to your frontend origin
+app.use(cors({ origin: ["http://localhost:3000"] }));
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
