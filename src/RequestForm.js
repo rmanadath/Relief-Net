@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from './supabase'
+import { geocodeAddress } from './services/routeService'
 
 export default function RequestForm({ user, onRequestSubmitted }) {
   const [formData, setFormData] = useState({
@@ -41,14 +42,39 @@ export default function RequestForm({ user, onRequestSubmitted }) {
     e.preventDefault()
     if (!validate()) return
     setLoading(true)
+    setMessage('Submitting request and finding location...')
     
-    // Prepare data with coordinates (convert to numbers if provided)
+    // Get address
+    const address = formData.address || formData.location
+    
+    // Auto-geocode if coordinates not provided
+    let latitude = formData.latitude ? parseFloat(formData.latitude) : null
+    let longitude = formData.longitude ? parseFloat(formData.longitude) : null
+    
+    if ((!latitude || !longitude) && address) {
+      try {
+        setMessage('Finding coordinates for your address...')
+        const geocoded = await geocodeAddress(address)
+        if (geocoded.lat && geocoded.lng) {
+          latitude = geocoded.lat
+          longitude = geocoded.lng
+          console.log('Geocoded address to:', latitude, longitude)
+        } else {
+          console.warn('Could not geocode address:', address)
+        }
+      } catch (error) {
+        console.error('Geocoding error:', error)
+        // Continue without coordinates - they can be added later
+      }
+    }
+    
+    // Prepare data with coordinates
     const requestData = {
       ...formData,
       user_id: user.id,
-      address: formData.address || formData.location,
-      latitude: formData.latitude ? parseFloat(formData.latitude) : null,
-      longitude: formData.longitude ? parseFloat(formData.longitude) : null
+      address: address,
+      latitude: latitude,
+      longitude: longitude
     }
     
     const { error } = await supabase
@@ -58,7 +84,11 @@ export default function RequestForm({ user, onRequestSubmitted }) {
     if (error) {
       setMessage('Error: ' + error.message)
     } else {
-      setMessage('Request submitted successfully!')
+      if (latitude && longitude) {
+        setMessage('Request submitted successfully! Location coordinates found automatically.')
+      } else {
+        setMessage('Request submitted successfully! (Note: Coordinates could not be automatically determined)')
+      }
       setFormData({
         name: '',
         contact: '',
@@ -76,36 +106,39 @@ export default function RequestForm({ user, onRequestSubmitted }) {
   }
 
   return (
-    <div className="request-form">
-      <h3>Post Aid Request</h3>
+    <div className="request-form bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+      <h3 className="text-2xl font-bold text-slate-900 mb-6">Post Aid Request</h3>
       <form onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label>Name:</label>
+        <div className="form-group mb-5">
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Name:</label>
           <input
             type="text"
             value={formData.name}
             onChange={(e) => setFormData({...formData, name: e.target.value})}
+            className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
             required
           />
           {errors.name && <div className="field-error">{errors.name}</div>}
         </div>
         
-        <div className="form-group">
-          <label>Contact:</label>
+        <div className="form-group mb-5">
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Contact:</label>
           <input
             type="text"
             value={formData.contact}
             onChange={(e) => setFormData({...formData, contact: e.target.value})}
+            className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
             required
           />
           {errors.contact && <div className="field-error">{errors.contact}</div>}
         </div>
         
-        <div className="form-group">
-          <label>Aid Type:</label>
+        <div className="form-group mb-5">
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Aid Type:</label>
           <select
             value={formData.aid_type}
             onChange={(e) => setFormData({...formData, aid_type: e.target.value})}
+            className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
           >
             <option value="food">Food</option>
             <option value="medicine">Medicine</option>
@@ -115,11 +148,12 @@ export default function RequestForm({ user, onRequestSubmitted }) {
           </select>
         </div>
 
-        <div className="form-group">
-          <label>Priority:</label>
+        <div className="form-group mb-5">
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Priority:</label>
           <select
             value={formData.priority}
             onChange={(e) => setFormData({...formData, priority: e.target.value})}
+            className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
           >
             <option value="high">High</option>
             <option value="medium">Medium</option>
@@ -128,54 +162,34 @@ export default function RequestForm({ user, onRequestSubmitted }) {
           {errors.priority && <div className="field-error">{errors.priority}</div>}
         </div>
         
-        <div className="form-group">
-          <label>Description:</label>
+        <div className="form-group mb-5">
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Description:</label>
           <textarea
             value={formData.description}
             onChange={(e) => setFormData({...formData, description: e.target.value})}
+            className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors min-h-[100px]"
             required
           />
           {errors.description && <div className="field-error">{errors.description}</div>}
         </div>
         
-        <div className="form-group">
-          <label>Location/Address:</label>
+        <div className="form-group mb-6">
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Location:</label>
           <input
             type="text"
             value={formData.location}
-            onChange={(e) => setFormData({...formData, location: e.target.value, address: e.target.value})}
-            placeholder="City, State or full address"
+            onChange={(e) => setFormData({...formData, location: e.target.value})}
+            className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
             required
           />
           {errors.location && <div className="field-error">{errors.location}</div>}
         </div>
         
-        <div className="form-group">
-          <label>Coordinates (Optional - for route optimization):</label>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <input
-              type="number"
-              step="any"
-              value={formData.latitude}
-              onChange={(e) => setFormData({...formData, latitude: e.target.value})}
-              placeholder="Latitude"
-              style={{ flex: 1 }}
-            />
-            <input
-              type="number"
-              step="any"
-              value={formData.longitude}
-              onChange={(e) => setFormData({...formData, longitude: e.target.value})}
-              placeholder="Longitude"
-              style={{ flex: 1 }}
-            />
-          </div>
-          <small style={{ color: '#666', fontSize: '12px' }}>
-            Optional: Provide coordinates for route optimization. You can get these from Google Maps.
-          </small>
-        </div>
-        
-        <button type="submit" disabled={loading} className="submit-btn">
+        <button 
+          type="submit" 
+          disabled={loading} 
+          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           {loading ? 'Submitting...' : 'Submit Request'}
         </button>
       </form>
