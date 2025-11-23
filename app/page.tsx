@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 
 export default function Home() {
@@ -14,14 +16,11 @@ export default function Home() {
               <Link href="/" className="text-gray-700 hover:text-indigo-600 font-medium">
                 Home
               </Link>
+              <Link href="/login" className="text-gray-700 hover:text-indigo-600 font-medium">
+                Login
+              </Link>
               <Link href="/post-request" className="text-gray-700 hover:text-indigo-600 font-medium">
                 Post Request
-              </Link>
-              <Link href="#" className="text-gray-700 hover:text-indigo-600 font-medium">
-                About
-              </Link>
-              <Link href="#" className="text-gray-700 hover:text-indigo-600 font-medium">
-                Contact
               </Link>
             </div>
           </div>
@@ -42,26 +41,17 @@ export default function Home() {
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
-              href="/post-request"
+              href="/login"
               className="bg-indigo-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
             >
-              Request Help
+              Get Started
             </Link>
-            <button
-              onClick={() => {
-                if (typeof window !== 'undefined') {
-                  const volunteerSection = document.getElementById('volunteer-info');
-                  if (volunteerSection) {
-                    volunteerSection.scrollIntoView({ behavior: 'smooth' });
-                  } else {
-                    alert('To become a volunteer:\n\n1. Sign up or log in to access the dashboard\n2. Contact an admin to set your role to "volunteer"\n3. Use the "Route Optimizer" tab to find and help with requests');
-                  }
-                }
-              }}
+            <Link
+              href="/post-request"
               className="bg-white text-indigo-600 px-8 py-3 rounded-lg font-semibold border-2 border-indigo-600 hover:bg-indigo-50 transition-colors"
             >
-              Volunteer
-            </button>
+              Post Request
+            </Link>
           </div>
         </div>
 
@@ -176,9 +166,9 @@ export default function Home() {
             <div>
               <h4 className="text-lg font-semibold mb-4">Quick Links</h4>
               <ul className="space-y-2">
+                <li><Link href="/login" className="text-gray-400 hover:text-white">Login / Dashboard</Link></li>
                 <li><Link href="/post-request" className="text-gray-400 hover:text-white">Post Request</Link></li>
-                <li><Link href="#" className="text-gray-400 hover:text-white">View Requests</Link></li>
-                <li><Link href="#" className="text-gray-400 hover:text-white">Volunteer</Link></li>
+                <li><Link href="/login" className="text-gray-400 hover:text-white">View Requests</Link></li>
               </ul>
             </div>
             <div>

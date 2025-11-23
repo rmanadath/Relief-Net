@@ -7,6 +7,7 @@ type FormData = {
   name: string;
   contact: string;
   aid_type: string;
+  priority: string;
   description: string;
   location: string;
 };
@@ -38,14 +39,19 @@ export default function PostRequest() {
       return;
     }
 
+    // Get current user if authenticated
+    const { data: { session } } = await supabase.auth.getSession();
+    
     const { error } = await supabase.from("requests").insert([
       {
         name: data.name,
         contact: data.contact,
-        aid_type: data.aid_type,
+        aid_type: data.aid_type.toLowerCase(),
+        priority: data.priority || 'medium',
         description: data.description,
         location: data.location,
-        timestamp: new Date().toISOString(),
+        user_id: session?.user?.id || null,
+        status: 'open',
       },
     ]);
 
@@ -95,12 +101,27 @@ export default function PostRequest() {
               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select Aid Type</option>
-              <option value="Food">Food</option>
-              <option value="Medical">Medical</option>
-              <option value="Shelter">Shelter</option>
-              <option value="Other">Other</option>
+              <option value="food">Food</option>
+              <option value="medicine">Medicine</option>
+              <option value="shelter">Shelter</option>
+              <option value="clothing">Clothing</option>
+              <option value="other">Other</option>
             </select>
             {errors.aid_type && <p className="text-red-500 text-sm mt-1">{errors.aid_type.message}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Priority</label>
+            <select
+              {...register("priority", { required: "Please select a priority" })}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500"
+              defaultValue="medium"
+            >
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+            {errors.priority && <p className="text-red-500 text-sm mt-1">{errors.priority.message}</p>}
           </div>
 
           <div>

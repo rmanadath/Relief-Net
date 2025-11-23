@@ -16,48 +16,96 @@ import { logSupabaseError, logMapsApiError, logRouteOptimizationError } from './
  */
 export async function getNearbyRequests(lat, lng, maxDistance = 50) {
   try {
-    // Use the database function to get nearby requests
-    const { data, error } = await supabase.rpc('get_nearby_requests', {
-      center_lat: lat,
-      center_lng: lng,
-      max_distance_km: maxDistance,
-      request_status: 'pending'
-    })
-
-    if (error) {
-      // If function doesn't exist, fallback to client-side filtering
-      if (error.code === '42883' || error.message?.includes('does not exist')) {
-        console.warn('Database function get_nearby_requests not found. Using fallback method.')
-        console.warn('Please run sprint3-database-enhancements.sql in Supabase SQL Editor')
-        return await getPendingRequestsWithLocation()
-      }
-      // Log Supabase error
-      await logSupabaseError(error, {
-        operation: 'get_nearby_requests',
-        lat,
-        lng,
-        maxDistance
-      })
-      console.error('Error fetching nearby requests:', error)
-      // Fallback: Fetch all pending requests and filter client-side
-      return await getPendingRequestsWithLocation()
+    // Validate inputs
+    if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
+      throw new Error('Invalid coordinates provided')
     }
 
-    return data || []
+    // Try to use the database function first
+    try {
+      const { data, error } = await supabase.rpc('get_nearby_requests', {
+        center_lat: lat,
+        center_lng: lng,
+        max_distance_km: maxDistance,
+        request_status: 'pending'
+      })
+
+      if (!error && data) {
+        return data
+      }
+
+      // If function doesn't exist or has errors, fallback
+      if (error) {
+        console.warn('Database function error:', error.message || error.code)
+        const errorMsg = error.message?.toLowerCase() || ''
+        if (error.code === '42883' || 
+            errorMsg.includes('does not exist') || 
+            errorMsg.includes('structure of query') ||
+            errorMsg.includes('result type') ||
+            errorMsg.includes('function result')) {
+          console.warn('Database function get_nearby_requests not available. Using fallback method.')
+        }
+      }
+    } catch (rpcError) {
+      console.warn('RPC call failed, using fallback:', rpcError.message)
+    }
+
+    // Fallback: Fetch all pending requests and filter client-side
+    console.log('Using client-side filtering fallback')
+    const fallbackData = await getPendingRequestsWithLocation()
+    return filterByDistance(fallbackData, lat, lng, maxDistance)
+    
   } catch (error) {
-    console.error('Error in getNearbyRequests:', error)
-    return await getPendingRequestsWithLocation()
+    console.error('Error in getNearbyRequests:', error.message || error)
+    // Try fallback
+    try {
+      const fallbackData = await getPendingRequestsWithLocation()
+      return filterByDistance(fallbackData, lat, lng, maxDistance)
+    } catch (fallbackError) {
+      console.error('Fallback also failed:', fallbackError)
+      return []
+    }
   }
+}
+
+/**
+ * Filter requests by distance (client-side fallback)
+ */
+function filterByDistance(requests, centerLat, centerLng, maxDistance) {
+  const R = 6371 // Earth's radius in km
+  
+  return requests
+    .filter(req => req.latitude && req.longitude)
+    .map(req => {
+      const lat1 = parseFloat(centerLat)
+      const lon1 = parseFloat(centerLng)
+      const lat2 = parseFloat(req.latitude)
+      const lon2 = parseFloat(req.longitude)
+      
+      const dLat = (lat2 - lat1) * Math.PI / 180
+      const dLon = (lon2 - lon1) * Math.PI / 180
+      const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon/2) * Math.sin(dLon/2)
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+      const distance = R * c
+      
+      return { ...req, distance_km: distance }
+    })
+    .filter(req => req.distance_km <= maxDistance)
+    .sort((a, b) => a.distance_km - b.distance_km)
 }
 
 /**
  * Fallback: Get all pending requests with location
  */
 async function getPendingRequestsWithLocation() {
-  const { data, error } = await supabase
+  // Try 'pending' first, but also check 'open' status
+  let { data, error } = await supabase
     .from('requests')
     .select('*')
-    .eq('status', 'pending')
+    .in('status', ['pending', 'open'])
     .not('latitude', 'is', null)
     .not('longitude', 'is', null)
 
@@ -73,6 +121,103 @@ async function getPendingRequestsWithLocation() {
 }
 
 /**
+ * Geocode existing requests that don't have coordinates
+ */
+export async function geocodeExistingRequests() {
+  try {
+    // Get all requests without coordinates (don't filter by status - geocode all)
+    const { data: requests, error } = await supabase
+      .from('requests')
+      .select('id, location, address, latitude, longitude')
+      .or('latitude.is.null,longitude.is.null')
+
+    if (error) {
+      console.error('Error fetching requests:', error)
+      return { success: false, message: error.message }
+    }
+
+    if (!requests || requests.length === 0) {
+      return { success: true, message: 'All requests already have coordinates', geocoded: 0 }
+    }
+
+    let geocodedCount = 0
+    const errors = []
+    const results = []
+
+    // Geocode each request
+    for (let i = 0; i < requests.length; i++) {
+      const request = requests[i]
+      const address = request.address || request.location
+      if (!address) {
+        errors.push(`Request ${request.id} has no address`)
+        continue
+      }
+
+      try {
+        console.log(`Geocoding ${i + 1}/${requests.length}: "${address}"`)
+        
+        const geocoded = await geocodeAddress(address)
+        if (geocoded.lat && geocoded.lng) {
+          const { error: updateError } = await supabase
+            .from('requests')
+            .update({
+              latitude: geocoded.lat,
+              longitude: geocoded.lng,
+              address: address
+            })
+            .eq('id', request.id)
+
+          if (!updateError) {
+            geocodedCount++
+            console.log(`✓ Successfully geocoded: "${address}" → ${geocoded.lat}, ${geocoded.lng}`)
+            results.push(`✓ ${address}`)
+          } else {
+            const errorMsg = `Failed to update request ${request.id}: ${updateError.message}`
+            console.error(errorMsg)
+            errors.push(errorMsg)
+          }
+        } else {
+          const errorMsg = `Could not geocode: "${address}" - API returned no coordinates`
+          console.warn(errorMsg)
+          errors.push(errorMsg)
+        }
+
+        // Rate limit: wait 1.1 seconds between requests (Nominatim requirement is 1/sec)
+        if (i < requests.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1100))
+        }
+      } catch (err) {
+        const errorMsg = `Error geocoding "${address}": ${err.message}`
+        console.error(errorMsg, err)
+        errors.push(errorMsg)
+        // Still wait to respect rate limit
+        if (i < requests.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1100))
+        }
+      }
+    }
+
+    console.log(`Geocoding complete: ${geocodedCount}/${requests.length} successful`)
+    if (errors.length > 0) {
+      console.warn('Geocoding errors:', errors)
+    }
+
+    return {
+      success: true,
+      message: geocodedCount > 0 
+        ? `Successfully added location data to ${geocodedCount} out of ${requests.length} request(s)`
+        : `Could not geocode any requests. Check console for details.`,
+      geocoded: geocodedCount,
+      total: requests.length,
+      errors: errors.length > 0 ? errors.slice(0, 3) : undefined // Show first 3 errors
+    }
+  } catch (error) {
+    console.error('Error in geocodeExistingRequests:', error)
+    return { success: false, message: error.message }
+  }
+}
+
+/**
  * Update volunteer location in profile
  * @param {string} userId - User ID
  * @param {string} location - Location address
@@ -82,11 +227,27 @@ async function getPendingRequestsWithLocation() {
  */
 export async function updateVolunteerLocation(userId, location, lat, lng) {
   try {
+    // If coordinates not provided but address is, try to geocode
+    let finalLat = lat
+    let finalLng = lng
+    
+    if ((!lat || !lng) && location) {
+      console.log('Geocoding volunteer address:', location)
+      const geocoded = await geocodeAddress(location)
+      if (geocoded.lat && geocoded.lng) {
+        finalLat = geocoded.lat
+        finalLng = geocoded.lng
+        console.log('Geocoded to:', finalLat, finalLng)
+      } else {
+        console.warn('Could not geocode address:', location)
+      }
+    }
+
     const { error } = await supabase.rpc('update_volunteer_location', {
       volunteer_id: userId,
       new_location: location,
-      new_lat: lat,
-      new_lng: lng
+      new_lat: finalLat,
+      new_lng: finalLng
     })
 
     if (error) {
@@ -101,8 +262,8 @@ export async function updateVolunteerLocation(userId, location, lat, lng) {
         .from('profiles')
         .update({
           volunteer_location: location,
-          volunteer_latitude: lat,
-          volunteer_longitude: lng
+          volunteer_latitude: finalLat,
+          volunteer_longitude: finalLng
         })
         .eq('id', userId)
 
@@ -287,15 +448,45 @@ export async function updateRouteStatus(routeId, status) {
 }
 
 /**
- * Geocode address to coordinates (using a geocoding service)
- * This is a placeholder - you'll need to implement with a geocoding API
- * Options: Google Geocoding API, OpenCage, Mapbox, etc.
+ * Geocode address to coordinates using OpenStreetMap Nominatim (free, no API key needed)
  * @param {string} address - Address string
- * @returns {Promise<Object>} {lat, lng} coordinates
+ * @returns {Promise<Object>} {lat, lng} coordinates or null if not found
  */
 export async function geocodeAddress(address) {
-  // Placeholder - implement with your preferred geocoding service
-  // For now, returns null - coordinates should be provided by user or frontend
-  console.warn('Geocoding not implemented. Please provide coordinates manually or implement a geocoding service.')
-  return { lat: null, lng: null }
+  if (!address || !address.trim()) {
+    return { lat: null, lng: null }
+  }
+
+  try {
+    // Use OpenStreetMap Nominatim API (free, no API key required)
+    // Rate limit: 1 request per second
+    const encodedAddress = encodeURIComponent(address.trim())
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1`
+    
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'ReliefNet/1.0' // Required by Nominatim
+      }
+    })
+
+    if (!response.ok) {
+      console.warn('Geocoding API error:', response.status)
+      return { lat: null, lng: null }
+    }
+
+    const data = await response.json()
+    
+    if (data && data.length > 0) {
+      const result = data[0]
+      return {
+        lat: parseFloat(result.lat),
+        lng: parseFloat(result.lon)
+      }
+    }
+
+    return { lat: null, lng: null }
+  } catch (error) {
+    console.error('Error geocoding address:', error)
+    return { lat: null, lng: null }
+  }
 }
