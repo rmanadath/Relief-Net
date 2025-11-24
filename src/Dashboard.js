@@ -1,18 +1,24 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from './supabase'
 import RequestForm from './RequestForm'
 import RequestList from './RequestList'
 import AdminPanel from './AdminPanel'
-<<<<<<< HEAD
 import RouteOptimizer from './components/RouteOptimizer'
-=======
->>>>>>> 36cfad8 (feat: Implement Volunteer Assignment Dashboard for Sprint 3)
-import AssignmentDashboard from './AssignmentDashboard'
 
 export default function Dashboard({ user }) {
   const [activeTab, setActiveTab] = useState('post')
   const [refreshKey, setRefreshKey] = useState(0)
+  const [AssignmentDashboard, setAssignmentDashboard] = useState(null)
   const isAdmin = user.role === 'admin'
+
+  // Dynamically load AssignmentDashboard only on client side (Leaflet requires window)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      import('./AssignmentDashboard').then((mod) => {
+        setAssignmentDashboard(() => mod.default)
+      })
+    }
+  }, [])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -98,11 +104,16 @@ export default function Dashboard({ user }) {
         {activeTab === 'view' && (
           <RequestList key={refreshKey} user={user} />
         )}
+        {activeTab === 'routes' && (
+          <RouteOptimizer user={user} />
+        )}
         {activeTab === 'admin' && isAdmin && (
           <AdminPanel user={user} onUpdate={handleRequestSubmitted} />
         )}
         {activeTab === 'assign' && isAdmin && (
-          <AssignmentDashboard user={user} />
+          AssignmentDashboard ? <AssignmentDashboard user={user} /> : (
+            <div className="flex items-center justify-center p-8 text-slate-600">Loading map...</div>
+          )
         )}
       </main>
     </div>

@@ -138,24 +138,34 @@ The app will open at `http://localhost:3000`
 
 ```
 Relief-Net/
-├── src/
-│   ├── components/        # React components
-│   │   └── RouteOptimizer.js
-│   ├── services/          # API services
-│   │   ├── routeService.js
-│   │   ├── analyticsService.js
-│   │   ├── errorLogger.js
-│   │   └── feedbackService.js
+├── app/                   # Next.js app directory
+│   ├── layout.tsx        # Root layout
+│   ├── page.tsx          # Home page
+│   ├── login/            # Login page
+│   └── post-request/     # Post request page
+├── src/                   # React components and utilities
+│   ├── components/       # Reusable React components
+│   │   ├── RouteOptimizer.js      # Full volunteer route optimizer
+│   │   ├── FeedbackForm.js        # Feedback submission form
+│   │   ├── AnalyticsDashboard.js  # Analytics dashboard
+│   │   └── RequestHeatmap.js      # Request heatmap visualization
+│   ├── services/         # API and service layer
+│   │   ├── routeService.js        # Route optimization services
+│   │   ├── analyticsService.js     # Analytics data services
+│   │   ├── errorLogger.js         # Error logging service
+│   │   └── feedbackService.js     # Feedback service
 │   ├── utils/            # Utility functions
-│   │   ├── routeOptimizer.js
-│   │   └── triageScorer.js
-│   ├── App.js            # Main app component
-│   ├── Dashboard.js      # Dashboard component
-│   ├── Auth.js           # Authentication
+│   │   ├── routeOptimizer.js      # Route optimization algorithms
+│   │   └── triageScorer.js        # Triage scoring logic
+│   ├── Dashboard.js      # Main dashboard component
+│   ├── Auth.js           # Authentication component
 │   ├── RequestForm.js    # Request posting form
-│   ├── RequestList.js   # Request list view
+│   ├── RequestList.js    # Request list view
 │   ├── AdminPanel.js     # Admin panel
-│   └── AssignmentDashboard.js  # Volunteer assignment
+│   ├── AssignmentDashboard.js  # Volunteer assignment dashboard
+│   ├── RouteOptimizer.js # Simple route optimizer (for admin)
+│   └── supabase.js       # Supabase client configuration
+├── database-setup.sql
 ├── sprint2-database-enhancements.sql
 ├── sprint3-database-enhancements.sql
 ├── sprint4-database-enhancements.sql

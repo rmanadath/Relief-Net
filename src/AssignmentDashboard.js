@@ -1,42 +1,33 @@
 import { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
 import { supabase } from './supabase';
 import { createOptimizedRoute } from './services/routeService';
 import { sortByTriageScore, calculateTriageScore, getTriageCategory, getTriageColor } from './utils/triageScorer';
-import RequestHeatmap from './components/RequestHeatmap';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import FeedbackForm from './components/FeedbackForm';
 
-// Fix for default marker icons in Leaflet
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
-});
+// Helper function to calculate bounds from coordinates (will be set after L loads)
+let getBounds = (coordinates) => {
+  if (!coordinates || coordinates.length === 0) return null;
+  // This will be updated when L is available
+  return null;
+};
 
 // Custom hook to handle map view updates
-function MapUpdater({ center, bounds }) {
-  const map = useMap();
+function MapUpdater({ center, bounds, MapComponents }) {
+  if (!MapComponents || !MapComponents.useMap) return null;
+  
+  const map = MapComponents.useMap();
   
   useEffect(() => {
-    if (bounds) {
+    if (bounds && map.fitBounds) {
       map.fitBounds(bounds, { padding: [50, 50] });
-    } else if (center) {
+    } else if (center && map.setView) {
       map.setView(center, 13);
     }
   }, [center, bounds, map]);
   
   return null;
 }
-
-// Helper function to calculate bounds from coordinates
-const getBounds = (coordinates) => {
-  if (!coordinates || coordinates.length === 0) return null;
-  return L.latLngBounds(coordinates.map(coord => [coord.lat, coord.lng]));
-};
 
 export default function AssignmentDashboard({ user }) {
   const [requests, setRequests] = useState([]);
@@ -48,6 +39,56 @@ export default function AssignmentDashboard({ user }) {
   const [error, setError] = useState(null);
   const [mapCenter, setMapCenter] = useState([37.7749, -122.4194]); // Default to San Francisco
   const [mapBounds, setMapBounds] = useState(null);
+  const [isClient, setIsClient] = useState(false);
+  const [MapComponents, setMapComponents] = useState(null);
+  const [RequestHeatmap, setRequestHeatmap] = useState(null);
+
+  // Only load Leaflet components on client side
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setIsClient(true);
+      
+      // Dynamically import Leaflet components
+      Promise.all([
+        import('react-leaflet'),
+        import('leaflet'),
+        import('leaflet/dist/leaflet.css'),
+        import('./components/RequestHeatmap')
+      ]).then(([reactLeaflet, leaflet, , heatmapModule]) => {
+        const L = leaflet.default;
+        
+        // Fix for default marker icons in Leaflet
+        if (L.Icon.Default.prototype._getIconUrl) {
+          delete L.Icon.Default.prototype._getIconUrl;
+        }
+        L.Icon.Default.mergeOptions({
+          iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
+          iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+          shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+        });
+        
+        // Update getBounds to use L
+        getBounds = (coordinates) => {
+          if (!coordinates || coordinates.length === 0) return null;
+          return L.latLngBounds(coordinates.map(coord => [coord.lat, coord.lng]));
+        };
+        
+        setMapComponents({
+          MapContainer: reactLeaflet.MapContainer,
+          TileLayer: reactLeaflet.TileLayer,
+          Marker: reactLeaflet.Marker,
+          Popup: reactLeaflet.Popup,
+          Polyline: reactLeaflet.Polyline,
+          useMap: reactLeaflet.useMap,
+          L: L
+        });
+        
+        setRequestHeatmap(() => heatmapModule.default);
+      }).catch(err => {
+        console.error('Error loading map components:', err);
+      });
+    }
+  }, []);
   const [routeSummary, setRouteSummary] = useState(null);
   const [activeTab, setActiveTab] = useState('map'); // 'map', 'analytics', or 'heatmap'
   const [selectedRequestForFeedback, setSelectedRequestForFeedback] = useState(null);
@@ -224,13 +265,15 @@ export default function AssignmentDashboard({ user }) {
 
   // Get marker icon based on request status
   const getMarkerIcon = (status) => {
+    if (!MapComponents || !MapComponents.L) return null;
+    
     const iconUrl = {
       'open': 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
       'in-progress': 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png',
       'fulfilled': 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png'
     }[status] || 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png';
 
-    return L.icon({
+    return MapComponents.L.icon({
       iconUrl,
       shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
       iconSize: [25, 41],
@@ -386,76 +429,91 @@ export default function AssignmentDashboard({ user }) {
         {/* Right column - Map and Route Details */}
         <div className="lg:col-span-2 bg-white p-4 rounded-lg shadow">
           <div className="h-[calc(100vh-250px)] rounded-md overflow-hidden">
-            <MapContainer
-              center={mapCenter}
-              zoom={13}
-              style={{ height: '100%', width: '100%' }}
-              zoomControl={false}
-            >
-              <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              />
-              
-              {/* Volunteer Marker */}
-              {selectedVolunteer && (
-                <Marker
-                  position={[
-                    volunteers.find(v => v.id === selectedVolunteer)?.latitude || mapCenter[0],
-                    volunteers.find(v => v.id === selectedVolunteer)?.longitude || mapCenter[1]
-                  ]}
-                  icon={L.icon({
-                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-violet.png',
-                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-                    iconSize: [25, 41],
-                    iconAnchor: [12, 41],
-                    popupAnchor: [1, -34],
-                    shadowSize: [41, 41]
-                  })}
-                >
-                  <Popup>
-                    <div className="font-medium">
-                      {volunteers.find(v => v.id === selectedVolunteer)?.full_name || 'Volunteer'}
-                    </div>
-                    <div className="text-sm text-gray-600">Your current location</div>
-                  </Popup>
-                </Marker>
-              )}
-              
-              {/* Request Markers */}
-              {requests.map(request => (
-                <Marker
-                  key={request.id}
-                  position={[request.latitude, request.longitude]}
-                  icon={getMarkerIcon(request.status)}
-                >
-                  <Popup>
-                    <div>
-                      <h4 className="font-medium">{request.name || 'Unnamed Request'}</h4>
-                      <p className="text-sm">{request.aid_type}</p>
-                      <p className="text-sm">{request.description}</p>
-                      <div className="mt-1 text-xs text-gray-500">
-                        <div>Priority: <span className="capitalize">{request.priority || 'medium'}</span></div>
-                        <div>Status: <span className="capitalize">{request.status || 'open'}</span></div>
-                        {request.status === 'in-progress' && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRequestCompletion(request.id);
-                            }}
-                            className="mt-2 px-2 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600"
-                          >
-                            Mark as Completed
-                          </button>
-                        )}
+            {!isClient || !MapComponents ? (
+              <div className="flex items-center justify-center h-full text-gray-500">
+                Loading map...
+              </div>
+            ) : (
+              <MapComponents.MapContainer
+                center={mapCenter}
+                zoom={13}
+                style={{ height: '100%', width: '100%' }}
+                zoomControl={false}
+              >
+                <MapComponents.TileLayer
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                />
+                
+                {/* Volunteer Marker */}
+                {selectedVolunteer && (
+                  <MapComponents.Marker
+                    position={[
+                      volunteers.find(v => v.id === selectedVolunteer)?.latitude || mapCenter[0],
+                      volunteers.find(v => v.id === selectedVolunteer)?.longitude || mapCenter[1]
+                    ]}
+                    icon={MapComponents.L.icon({
+                      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-violet.png',
+                      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                      iconSize: [25, 41],
+                      iconAnchor: [12, 41],
+                      popupAnchor: [1, -34],
+                      shadowSize: [41, 41]
+                    })}
+                  >
+                    <MapComponents.Popup>
+                      <div className="font-medium">
+                        {volunteers.find(v => v.id === selectedVolunteer)?.full_name || 'Volunteer'}
                       </div>
-                    </div>
-                  </Popup>
-                </Marker>
-              )}
-              
-              <MapUpdater center={mapCenter} bounds={mapBounds} />
-            </MapContainer>
+                      <div className="text-sm text-gray-600">Your current location</div>
+                    </MapComponents.Popup>
+                  </MapComponents.Marker>
+                )}
+                
+                {/* Request Markers */}
+                {requests.map(request => (
+                  <MapComponents.Marker
+                    key={request.id}
+                    position={[request.latitude, request.longitude]}
+                    icon={getMarkerIcon(request.status)}
+                  >
+                    <MapComponents.Popup>
+                      <div>
+                        <h4 className="font-medium">{request.name || 'Unnamed Request'}</h4>
+                        <p className="text-sm">{request.aid_type}</p>
+                        <p className="text-sm">{request.description}</p>
+                        <div className="mt-1 text-xs text-gray-500">
+                          <div>Priority: <span className="capitalize">{request.priority || 'medium'}</span></div>
+                          <div>Status: <span className="capitalize">{request.status || 'open'}</span></div>
+                          {request.status === 'in-progress' && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRequestCompletion(request.id);
+                              }}
+                              className="mt-2 px-2 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600"
+                            >
+                              Mark as Completed
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </MapComponents.Popup>
+                  </MapComponents.Marker>
+                ))}
+                
+                {optimizedRoute && optimizedRoute.route && (
+                  <MapComponents.Polyline
+                    positions={getPolylinePositions()}
+                    color="blue"
+                    weight={4}
+                    opacity={0.7}
+                  />
+                )}
+                
+                <MapUpdater center={mapCenter} bounds={mapBounds} MapComponents={MapComponents} />
+              </MapComponents.MapContainer>
+            )}
           </div>
           
           {/* Route Summary */}
@@ -526,12 +584,18 @@ export default function AssignmentDashboard({ user }) {
       {activeTab === 'heatmap' && (
         <div className="bg-white p-4 rounded-lg shadow">
           <h3 className="text-lg font-medium mb-4">Request Heatmap</h3>
-          <RequestHeatmap 
-            onPointClick={(point) => {
-              // Handle point click if needed
-              console.log('Heatmap point clicked:', point);
-            }} 
-          />
+          {RequestHeatmap ? (
+            <RequestHeatmap 
+              onPointClick={(point) => {
+                // Handle point click if needed
+                console.log('Heatmap point clicked:', point);
+              }} 
+            />
+          ) : (
+            <div className="flex items-center justify-center p-8 text-gray-500">
+              Loading heatmap...
+            </div>
+          )}
           <div className="mt-4 text-sm text-gray-500">
             <p>This heatmap shows the density and urgency of aid requests. Hotter colors indicate areas with more urgent or numerous requests.</p>
           </div>
