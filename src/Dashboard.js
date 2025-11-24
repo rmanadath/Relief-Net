@@ -1,3 +1,5 @@
+'use client'
+
 import { useState, useEffect } from 'react'
 import { supabase } from './supabase'
 import RequestForm from './RequestForm'
@@ -32,7 +34,14 @@ export default function Dashboard({ user }) {
     <div className="dashboard max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <header className="dashboard-header flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white border border-slate-200 rounded-xl shadow-sm px-6 py-5 mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-1">Welcome to ReliefNet</h2>
+          <h2 className="text-2xl font-bold text-slate-900 mb-1">
+            <a 
+              href="/" 
+              className="hover:text-indigo-600 transition-colors cursor-pointer"
+            >
+              Welcome to ReliefNet
+            </a>
+          </h2>
           <p className="text-sm text-slate-600">Disaster relief coordination platform</p>
         </div>
         <div className="user-info flex items-center gap-4">
