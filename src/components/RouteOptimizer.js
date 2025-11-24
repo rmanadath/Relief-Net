@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { 
-  getNearbyRequests, 
-  createOptimizedRoute, 
   updateVolunteerLocation,
-  getVolunteerRoutes,
-  updateRouteStatus,
   geocodeExistingRequests,
   geocodeAddress,
   reverseGeocode
 } from '../services/routeService'
+// Backend API functions for route optimization
+import {
+  optimizeRoute as optimizeRouteAPI,
+  getNearbyRequests as getNearbyRequestsAPI,
+  getVolunteerRoutes as getVolunteerRoutesAPI
+} from '../services/backendApi'
 
 export default function RouteOptimizer({ user }) {
   const [volunteerLocation, setVolunteerLocation] = useState({
@@ -55,7 +57,7 @@ export default function RouteOptimizer({ user }) {
 
   const loadMyRoutes = async () => {
     try {
-      const routes = await getVolunteerRoutes(user.id)
+      const routes = await getVolunteerRoutesAPI()
       setMyRoutes(routes || [])
     } catch (error) {
       console.error('Error loading routes:', error)
@@ -196,7 +198,7 @@ export default function RouteOptimizer({ user }) {
         }
       }
       
-      const requests = await getNearbyRequests(lat, lng, 50) // 50km radius
+      const requests = await getNearbyRequestsAPI(lat, lng, 50) // 50km radius
       console.log('Found nearby requests:', requests.length)
       
       if (requests.length === 0) {
@@ -262,8 +264,8 @@ export default function RouteOptimizer({ user }) {
     setError('')
 
     try {
-      const route = await createOptimizedRoute(
-        user.id,
+      // Call backend API for route optimization
+      const route = await optimizeRouteAPI(
         selectedRequests.map(r => r.id),
         {
           lat: parseFloat(volunteerLocation.lat),
@@ -272,11 +274,18 @@ export default function RouteOptimizer({ user }) {
         optimizationMethod
       )
 
-      setOptimizedRoute(route)
+      // Backend returns route with requests array and route data
+      setOptimizedRoute({
+        requests: route.requests,
+        distance: route.distance,
+        duration: route.duration,
+        waypoints: route.waypoints
+      })
       alert(`Route optimized! Total distance: ${route.distance.toFixed(2)} km`)
       await loadMyRoutes()
     } catch (err) {
       setError('Failed to optimize route: ' + err.message)
+      console.error('Route optimization error:', err)
     } finally {
       setLoading(false)
     }
@@ -559,19 +568,19 @@ export default function RouteOptimizer({ user }) {
       )}
 
       {/* Optimized Route Display */}
-      {optimizedRoute && (
+      {optimizedRoute && optimizedRoute.requests && (
         <div className="mb-6 p-4 bg-green-50 rounded-lg border border-green-200">
           <h3 className="text-lg font-semibold mb-3">Optimized Route</h3>
           <div className="mb-3">
-            <p><strong>Total Distance:</strong> {optimizedRoute.distance.toFixed(2)} km</p>
-            <p><strong>Estimated Duration:</strong> {Math.round(optimizedRoute.duration / 60)} minutes</p>
+            <p><strong>Total Distance:</strong> {optimizedRoute.distance?.toFixed(2) || '0.00'} km</p>
+            <p><strong>Estimated Duration:</strong> {optimizedRoute.duration ? Math.round(optimizedRoute.duration / 60) : 0} minutes</p>
           </div>
           <div className="space-y-2">
             <p className="font-semibold">Route Order:</p>
             <ol className="list-decimal list-inside space-y-1">
               {optimizedRoute.requests.map((request, index) => (
                 <li key={request.id} className="text-sm">
-                  {index + 1}. {request.name} - {request.location}
+                  {index + 1}. {request.name} - {request.location || request.address}
                   {request.distanceFromPrevious && (
                     <span className="text-gray-600">
                       {' '}({request.distanceFromPrevious.toFixed(2)} km from previous)
