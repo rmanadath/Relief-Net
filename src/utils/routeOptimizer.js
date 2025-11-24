@@ -33,6 +33,46 @@ function toRad(degrees) {
 }
 
 /**
+ * Helper function to wrap nearest neighbor results in proper format with distance/duration
+ * @param {Array} optimizedRequests - Array of optimized requests from nearest neighbor
+ * @param {Object} startLocation - Starting location {lat, lng}
+ * @returns {Object} Route object with {requests, distance, duration}
+ */
+function wrapNearestNeighborResult(optimizedRequests, startLocation) {
+  if (!optimizedRequests || !Array.isArray(optimizedRequests) || optimizedRequests.length === 0) {
+    return { requests: [], distance: 0, duration: 0 }
+  }
+  
+  let totalDistance = 0
+  let currentLoc = startLocation
+  
+  optimizedRequests.forEach((request, index) => {
+    if (index > 0) {
+      const prevRequest = optimizedRequests[index - 1]
+      totalDistance += calculateDistance(
+        parseFloat(prevRequest.latitude),
+        parseFloat(prevRequest.longitude),
+        parseFloat(request.latitude),
+        parseFloat(request.longitude)
+      )
+    } else {
+      totalDistance += calculateDistance(
+        currentLoc.lat,
+        currentLoc.lng,
+        parseFloat(request.latitude),
+        parseFloat(request.longitude)
+      )
+    }
+  })
+  
+  return {
+    requests: optimizedRequests,
+    distance: totalDistance,
+    duration: Math.round(totalDistance * 60) // Estimate: 1 km = 1 minute
+  }
+}
+
+/**
  * Simple Nearest Neighbor algorithm for route optimization
  * This is a greedy algorithm that finds a good (not always optimal) solution
  * @param {Array} requests - Array of requests with lat/lng
@@ -100,11 +140,13 @@ export function optimizeRouteNearestNeighbor(requests, startLocation) {
  * @returns {Promise<Object>} Optimized route with distance and duration
  */
 export async function optimizeRouteWithOpenRouteService(requests, startLocation) {
-  const API_KEY = process.env.REACT_APP_OPENROUTESERVICE_API_KEY || ''
+  // Support both Next.js (NEXT_PUBLIC_) and React (REACT_APP_) prefixes
+  const API_KEY = process.env.NEXT_PUBLIC_OPENROUTESERVICE_API_KEY || process.env.REACT_APP_OPENROUTESERVICE_API_KEY || ''
   
   if (!API_KEY) {
     console.warn('OpenRouteService API key not found, falling back to Nearest Neighbor algorithm')
-    return optimizeRouteNearestNeighbor(requests, startLocation)
+    const optimizedRequests = optimizeRouteNearestNeighbor(requests, startLocation)
+    return wrapNearestNeighborResult(optimizedRequests, startLocation)
   }
   
   // Build coordinates array: [start, ...requests, start] (round trip)
@@ -142,21 +184,64 @@ export async function optimizeRouteWithOpenRouteService(requests, startLocation)
     const data = await response.json()
     
     if (!data.routes || !data.routes[0]) {
-      throw new Error('OpenRouteService returned invalid route data')
+      console.warn('OpenRouteService returned invalid route data, falling back to Nearest Neighbor')
+      const optimizedRequests = optimizeRouteNearestNeighbor(requests, startLocation)
+      return wrapNearestNeighborResult(optimizedRequests, startLocation)
     }
     
-    // Extract optimized order from the response
-    // OpenRouteService returns the route in optimal order
+    // Note: OpenRouteService doesn't optimize waypoint order automatically
+    // It just returns the route in the order provided. For actual optimization,
+    // we need to use Nearest Neighbor or another TSP solver first, then get directions.
+    // For now, fall back to Nearest Neighbor and use OpenRouteService for distance/duration only
     const route = data.routes[0]
-    const optimizedOrder = route.geometry.coordinates.map((coord, index) => {
-      if (index === 0 || index === coordinates.length - 1) return null // Skip start/end
-      return requests[index - 1] // Map back to original requests
-    }).filter(Boolean)
+    
+    // Check if geometry exists
+    if (!route.geometry || !route.geometry.coordinates) {
+      console.warn('OpenRouteService response missing geometry, falling back to Nearest Neighbor')
+      const optimizedRequests = optimizeRouteNearestNeighbor(requests, startLocation)
+      return wrapNearestNeighborResult(optimizedRequests, startLocation)
+    }
+    
+    // Since OpenRouteService doesn't optimize order, use Nearest Neighbor for ordering
+    // but use OpenRouteService distance/duration if available
+    const optimizedRequests = optimizeRouteNearestNeighbor(requests, startLocation)
+    
+    // Calculate distance/duration from optimized requests if OpenRouteService didn't provide them
+    let finalDistance = route.summary?.distance ? route.summary.distance / 1000 : null
+    let finalDuration = route.summary?.duration ? Math.round(route.summary.duration) : null
+    
+    // If OpenRouteService didn't provide distance/duration, calculate from optimized requests
+    if (finalDistance == null || finalDuration == null) {
+      let totalDistance = 0
+      let currentLoc = startLocation
+      
+      optimizedRequests.forEach((request, index) => {
+        if (index > 0) {
+          const prevRequest = optimizedRequests[index - 1]
+          totalDistance += calculateDistance(
+            parseFloat(prevRequest.latitude),
+            parseFloat(prevRequest.longitude),
+            parseFloat(request.latitude),
+            parseFloat(request.longitude)
+          )
+        } else {
+          totalDistance += calculateDistance(
+            currentLoc.lat,
+            currentLoc.lng,
+            parseFloat(request.latitude),
+            parseFloat(request.longitude)
+          )
+        }
+      })
+      
+      finalDistance = finalDistance ?? totalDistance
+      finalDuration = finalDuration ?? Math.round(totalDistance * 60)
+    }
     
     return {
-      requests: optimizedOrder,
-      distance: route.summary.distance / 1000, // Convert to km
-      duration: route.summary.duration, // in seconds
+      requests: optimizedRequests,
+      distance: finalDistance,
+      duration: finalDuration,
       geometry: route.geometry
     }
   } catch (error) {
@@ -166,7 +251,8 @@ export async function optimizeRouteWithOpenRouteService(requests, startLocation)
     }
     console.error('OpenRouteService optimization failed:', error)
     // Fallback to Nearest Neighbor for non-API errors
-    return optimizeRouteNearestNeighbor(requests, startLocation)
+    const optimizedRequests = optimizeRouteNearestNeighbor(requests, startLocation)
+    return wrapNearestNeighborResult(optimizedRequests, startLocation)
   }
 }
 
@@ -178,11 +264,13 @@ export async function optimizeRouteWithOpenRouteService(requests, startLocation)
  * @returns {Promise<Object>} Optimized route with distance and duration
  */
 export async function optimizeRouteWithGoogleMaps(requests, startLocation) {
-  const API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY || ''
+  // Support both Next.js (NEXT_PUBLIC_) and React (REACT_APP_) prefixes
+  const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.REACT_APP_GOOGLE_MAPS_API_KEY || ''
   
   if (!API_KEY) {
     console.warn('Google Maps API key not found, falling back to Nearest Neighbor algorithm')
-    return optimizeRouteNearestNeighbor(requests, startLocation)
+    const optimizedRequests = optimizeRouteNearestNeighbor(requests, startLocation)
+    return wrapNearestNeighborResult(optimizedRequests, startLocation)
   }
   
   // Build waypoints (excluding start/end)
@@ -209,14 +297,18 @@ export async function optimizeRouteWithGoogleMaps(requests, startLocation) {
     }
     
     if (!data.routes || !data.routes[0]) {
-      throw new Error('Google Maps returned invalid route data')
+      console.warn('Google Maps returned invalid route data, falling back to Nearest Neighbor')
+      const optimizedRequests = optimizeRouteNearestNeighbor(requests, startLocation)
+      return wrapNearestNeighborResult(optimizedRequests, startLocation)
     }
     
     const route = data.routes[0]
     const optimizedWaypointOrder = route.waypoint_order
     
     if (!optimizedWaypointOrder || optimizedWaypointOrder.length === 0) {
-      throw new Error('Google Maps returned empty waypoint order')
+      console.warn('Google Maps returned empty waypoint order, falling back to Nearest Neighbor')
+      const optimizedRequests = optimizeRouteNearestNeighbor(requests, startLocation)
+      return wrapNearestNeighborResult(optimizedRequests, startLocation)
     }
     
     // Reorder requests based on optimized waypoint order
@@ -234,13 +326,14 @@ export async function optimizeRouteWithGoogleMaps(requests, startLocation) {
     return {
       requests: optimizedRequests,
       distance: totalDistance,
-      duration: totalDuration,
+      duration: Math.round(totalDuration), // Round to integer seconds
       waypointOrder: optimizedWaypointOrder
     }
   } catch (error) {
     console.error('Google Maps optimization failed:', error)
     // Fallback to Nearest Neighbor
-    return optimizeRouteNearestNeighbor(requests, startLocation)
+    const optimizedRequests = optimizeRouteNearestNeighbor(requests, startLocation)
+    return wrapNearestNeighborResult(optimizedRequests, startLocation)
   }
 }
 
@@ -261,33 +354,6 @@ export async function optimizeRoute(requests, startLocation, method = 'nearest')
     case 'nearest':
     default:
       const optimizedRequests = optimizeRouteNearestNeighbor(requests, startLocation)
-      // Calculate total distance for nearest neighbor
-      let totalDistance = 0
-      let currentLoc = startLocation
-      
-      optimizedRequests.forEach((request, index) => {
-        if (index > 0) {
-          const prevRequest = optimizedRequests[index - 1]
-          totalDistance += calculateDistance(
-            parseFloat(prevRequest.latitude),
-            parseFloat(prevRequest.longitude),
-            parseFloat(request.latitude),
-            parseFloat(request.longitude)
-          )
-        } else {
-          totalDistance += calculateDistance(
-            currentLoc.lat,
-            currentLoc.lng,
-            parseFloat(request.latitude),
-            parseFloat(request.longitude)
-          )
-        }
-      })
-      
-      return {
-        requests: optimizedRequests,
-        distance: totalDistance,
-        duration: totalDistance * 60 // Estimate: 1 km = 1 minute
-      }
+      return wrapNearestNeighborResult(optimizedRequests, startLocation)
   }
 }

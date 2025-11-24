@@ -7,7 +7,8 @@ import {
   getVolunteerRoutes,
   updateRouteStatus,
   geocodeExistingRequests,
-  geocodeAddress
+  geocodeAddress,
+  reverseGeocode
 } from '../services/routeService'
 
 export default function RouteOptimizer({ user }) {
@@ -27,8 +28,13 @@ export default function RouteOptimizer({ user }) {
   useEffect(() => {
     // Load volunteer's saved location
     loadVolunteerLocation()
-    // Load volunteer's previous routes
-    loadMyRoutes()
+    // Load volunteer's previous routes (lazy load - not critical for initial render)
+    // Delay this slightly to improve initial page load
+    const timer = setTimeout(() => {
+      loadMyRoutes()
+    }, 500)
+    
+    return () => clearTimeout(timer)
   }, [user])
 
   const loadVolunteerLocation = async () => {
@@ -48,8 +54,14 @@ export default function RouteOptimizer({ user }) {
   }
 
   const loadMyRoutes = async () => {
-    const routes = await getVolunteerRoutes(user.id)
-    setMyRoutes(routes)
+    try {
+      const routes = await getVolunteerRoutes(user.id)
+      setMyRoutes(routes || [])
+    } catch (error) {
+      console.error('Error loading routes:', error)
+      // Don't block UI if routes fail to load
+      setMyRoutes([])
+    }
   }
 
   const handleSaveLocation = async () => {
@@ -61,20 +73,36 @@ export default function RouteOptimizer({ user }) {
     setLoading(true)
     setError('')
 
-    // Save address - coordinates will be automatically geocoded
-    const success = await updateVolunteerLocation(
+    // Always geocode the address - don't use existing coordinates if address changed
+    // This ensures new addresses get new coordinates
+    const result = await updateVolunteerLocation(
       user.id,
       volunteerLocation.address.trim(),
-      volunteerLocation.lat ? parseFloat(volunteerLocation.lat) : null,
-      volunteerLocation.lng ? parseFloat(volunteerLocation.lng) : null
+      null, // Don't pass existing lat - force geocoding
+      null  // Don't pass existing lng - force geocoding
     )
 
-    if (success) {
+    // Handle both old format (boolean) and new format (object with success/error)
+    if (result === true || (result && result.success === true)) {
       setError('')
-      alert('Location saved successfully! Coordinates were automatically calculated from your address.')
+      // Wait a moment for database to update
+      await new Promise(resolve => setTimeout(resolve, 500))
       await loadVolunteerLocation()
+      // Check if coordinates were actually loaded
+      if (volunteerLocation.lat && volunteerLocation.lng) {
+        alert('Location saved successfully! Coordinates were automatically calculated from your address.')
+      } else {
+        // Reload one more time in case of timing issue
+        await loadVolunteerLocation()
+        if (!volunteerLocation.lat || !volunteerLocation.lng) {
+          setError('Location saved but coordinates could not be retrieved. Please refresh the page.')
+        }
+      }
     } else {
-      setError('Failed to save location')
+      // Show specific error message if available
+      const errorMsg = result?.error || 'Failed to save location. Could not find coordinates for this address. Please try a more specific address (e.g., "123 Main St, Brooklyn, NY 11203").'
+      setError(errorMsg)
+      console.error('Failed to save location:', result)
     }
     
     setLoading(false)
@@ -99,13 +127,20 @@ export default function RouteOptimizer({ user }) {
         const geocoded = await geocodeAddress(volunteerLocation.address)
         if (geocoded.lat && geocoded.lng) {
           // Save the geocoded coordinates
-          await updateVolunteerLocation(
+          const result = await updateVolunteerLocation(
             user.id,
             volunteerLocation.address,
             geocoded.lat,
             geocoded.lng
           )
-          await loadVolunteerLocation()
+          // Handle both old format (boolean) and new format (object)
+          if (result === true || (result && result.success === true)) {
+            await loadVolunteerLocation()
+          } else {
+            setError(result?.error || 'Failed to save geocoded coordinates')
+            setLoading(false)
+            return
+          }
         } else {
           setError('Could not find coordinates for your address. Please try a more specific address.')
           setLoading(false)
@@ -255,6 +290,90 @@ export default function RouteOptimizer({ user }) {
     }
   }
 
+  const handleGetCurrentLocation = async () => {
+    if (!navigator.geolocation) {
+      setError('Geolocation is not supported by your browser')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = position.coords.latitude
+        const lng = position.coords.longitude
+        
+        // Update coordinates immediately
+        setVolunteerLocation(prev => ({
+          ...prev,
+          lat: lat.toString(),
+          lng: lng.toString()
+        }))
+
+        // Try to reverse geocode to get address
+        try {
+          const reversed = await reverseGeocode(lat, lng)
+          if (reversed.address) {
+            setVolunteerLocation(prev => ({
+              ...prev,
+              address: reversed.address,
+              lat: lat.toString(),
+              lng: lng.toString()
+            }))
+            setError('')
+          } else {
+            // If reverse geocoding fails, just use coordinates
+            setVolunteerLocation(prev => ({
+              ...prev,
+              address: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+              lat: lat.toString(),
+              lng: lng.toString()
+            }))
+            setError('Got your location! Address could not be determined automatically. You can edit it manually.')
+          }
+        } catch (error) {
+          console.error('Reverse geocoding error:', error)
+          // Still set coordinates even if reverse geocoding fails
+          setVolunteerLocation(prev => ({
+            ...prev,
+            address: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+            lat: lat.toString(),
+            lng: lng.toString()
+          }))
+          setError('Got your location! Address could not be determined automatically. You can edit it manually.')
+        }
+        
+        setLoading(false)
+      },
+      (error) => {
+        console.error('Geolocation error:', error)
+        let errorMessage = 'Could not get your location. '
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage += 'Please allow location access in your browser settings.'
+            break
+          case error.POSITION_UNAVAILABLE:
+            errorMessage += 'Location information is unavailable.'
+            break
+          case error.TIMEOUT:
+            errorMessage += 'Location request timed out. Please try again.'
+            break
+          default:
+            errorMessage += 'An unknown error occurred.'
+            break
+        }
+        setError(errorMessage)
+        setLoading(false)
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    )
+  }
+
   return (
     <div className="route-optimizer p-6 bg-white rounded-xl shadow-lg">
       <h2 className="text-2xl font-bold mb-6">Route Optimizer</h2>
@@ -263,17 +382,35 @@ export default function RouteOptimizer({ user }) {
       <div className="mb-6 p-4 bg-gray-50 rounded-lg">
         <h3 className="text-lg font-semibold mb-3">Set Your Location</h3>
         <div className="space-y-3">
-          <input
-            type="text"
-            placeholder="Enter your address (e.g., 123 Main St, New York, NY)"
-            value={volunteerLocation.address}
-            onChange={(e) => setVolunteerLocation({...volunteerLocation, address: e.target.value})}
-            className="w-full p-2 border rounded"
-          />
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Enter your address (e.g., 123 Main St, New York, NY)"
+              value={volunteerLocation.address}
+              onChange={(e) => {
+                // Clear coordinates when address changes so new address gets geocoded
+                setVolunteerLocation({
+                  address: e.target.value,
+                  lat: '',
+                  lng: ''
+                })
+              }}
+              className="flex-1 p-2 border rounded"
+            />
+            <button
+              onClick={handleGetCurrentLocation}
+              disabled={loading}
+              type="button"
+              className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 disabled:opacity-50 whitespace-nowrap"
+              title="Use your current location from GPS"
+            >
+              📍 Get Current Location
+            </button>
+          </div>
           <button
             onClick={handleSaveLocation}
             disabled={loading}
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50 w-full"
           >
             {loading ? 'Saving...' : 'Save Location'}
           </button>
@@ -402,9 +539,8 @@ export default function RouteOptimizer({ user }) {
             onChange={(e) => setOptimizationMethod(e.target.value)}
             className="p-2 border rounded"
           >
-            <option value="nearest">Nearest Neighbor (Fast, Free)</option>
-            <option value="openrouteservice">OpenRouteService (More Accurate, Requires API Key)</option>
-            <option value="googlemaps">Google Maps (Most Accurate, Requires API Key)</option>
+            <option value="nearest">Nearest Neighbor (Fast, Free, Recommended)</option>
+            <option value="openrouteservice">OpenRouteService (More Accurate)</option>
           </select>
         </div>
       )}
