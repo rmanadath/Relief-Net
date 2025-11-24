@@ -277,6 +277,34 @@ export default function RouteOptimizer({ user }) {
           >
             {loading ? 'Saving...' : 'Save Location'}
           </button>
+          
+          {/* Display Coordinates */}
+          {(volunteerLocation.lat && volunteerLocation.lng) ? (
+            <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded">
+              <p className="text-sm font-semibold text-green-800 mb-1">📍 Coordinates Found:</p>
+              <div className="text-xs text-green-700 space-y-1">
+                <p><strong>Latitude:</strong> {volunteerLocation.lat}</p>
+                <p><strong>Longitude:</strong> {volunteerLocation.lng}</p>
+                <p className="mt-2">
+                  <a 
+                    href={`https://www.google.com/maps?q=${volunteerLocation.lat},${volunteerLocation.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline"
+                  >
+                    View on Google Maps →
+                  </a>
+                </p>
+              </div>
+            </div>
+          ) : volunteerLocation.address ? (
+            <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+              <p className="text-xs text-yellow-700">
+                ⚠️ Coordinates not yet calculated. Click "Save Location" to geocode your address.
+              </p>
+            </div>
+          ) : null}
+          
           <p className="text-xs text-gray-500">
             Enter your address. Coordinates will be automatically calculated from your address.
           </p>
@@ -330,12 +358,27 @@ export default function RouteOptimizer({ user }) {
                 onClick={() => toggleRequestSelection(request)}
               >
                 <div className="flex items-center justify-between">
-                  <div>
+                  <div className="flex-1">
                     <p className="font-semibold">{request.name}</p>
-                    <p className="text-sm text-gray-600">{request.location}</p>
+                    <p className="text-sm text-gray-600">{request.location || request.address}</p>
                     <p className="text-xs text-gray-500">
                       {request.distance_km ? `${request.distance_km.toFixed(2)} km away` : ''}
                     </p>
+                    {(request.latitude && request.longitude) && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        📍 {request.latitude.toFixed(4)}, {request.longitude.toFixed(4)}
+                        {' '}
+                        <a 
+                          href={`https://www.google.com/maps?q=${request.latitude},${request.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-500 hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          (map)
+                        </a>
+                      </p>
+                    )}
                   </div>
                   <input
                     type="checkbox"
