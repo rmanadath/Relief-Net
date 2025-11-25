@@ -90,16 +90,28 @@ export default function Dashboard({ user }) {
           Route Optimizer
         </button>
         {isAdmin && (
-          <button 
-            className={`rounded-lg px-5 py-2.5 text-sm font-semibold transition-all duration-200 ${
-              activeTab === 'admin' 
-                ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-300' 
-                : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 hover:border-slate-400 hover:shadow-sm'
-            }`}
-            onClick={() => setActiveTab('admin')}
-          >
-            Admin Panel
-          </button>
+          <>
+            <button 
+              className={`rounded-lg px-5 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                activeTab === 'admin' 
+                  ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-300' 
+                  : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 hover:border-slate-400 hover:shadow-sm'
+              }`}
+              onClick={() => setActiveTab('admin')}
+            >
+              Admin Panel
+            </button>
+            <button 
+              className={`rounded-lg px-5 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                activeTab === 'assign' 
+                  ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-300' 
+                  : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 hover:border-slate-400 hover:shadow-sm'
+              }`}
+              onClick={() => setActiveTab('assign')}
+            >
+              Assignment Dashboard
+            </button>
+          </>
         )}
       </nav>
 
