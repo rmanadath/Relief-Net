@@ -476,20 +476,27 @@ export default function RouteOptimizer({ user }) {
       (error) => {
         console.error('Geolocation error:', error)
         let errorMessage = 'Could not get your location. '
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            errorMessage += 'Please allow location access in your browser settings.'
-            break
-          case error.POSITION_UNAVAILABLE:
-            errorMessage += 'Location information is unavailable.'
-            break
-          case error.TIMEOUT:
-            errorMessage += 'Location request timed out. Please try again.'
-            break
-          default:
-            errorMessage += 'An unknown error occurred.'
-            break
+        
+        // Handle different error codes
+        if (error && error.code) {
+          switch (error.code) {
+            case 1: // PERMISSION_DENIED
+              errorMessage += 'Location access was denied. Please allow location access in your browser settings and try again.'
+              break
+            case 2: // POSITION_UNAVAILABLE
+              errorMessage += 'Location information is unavailable. Please check your GPS/location services.'
+              break
+            case 3: // TIMEOUT
+              errorMessage += 'Location request timed out. Please check your internet connection and try again.'
+              break
+            default:
+              errorMessage += 'An unknown location error occurred.'
+              break
+          }
+        } else {
+          errorMessage += 'Location services may be disabled or your browser may not support geolocation. You can manually enter your address instead.'
         }
+        
         setError(errorMessage)
         setLoading(false)
       },
