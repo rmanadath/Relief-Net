@@ -177,7 +177,9 @@ export async function geocodeExistingRequests() {
             errors.push(errorMsg)
           }
         } else {
-          const errorMsg = `Could not geocode: "${address}" - API returned no coordinates`
+          // Still try to geocode - even if it looks like test data, the API might recognize it
+          // (e.g., "antarctica" could actually be geocoded to Antarctica)
+          const errorMsg = `Could not geocode: "${address.substring(0, 50)}${address.length > 50 ? '...' : ''}" - API returned no coordinates. The address may not be recognized.`
           console.warn(errorMsg)
           errors.push(errorMsg)
         }

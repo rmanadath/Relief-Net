@@ -4,7 +4,8 @@ import {
   updateVolunteerLocation,
   geocodeExistingRequests,
   geocodeAddress,
-  reverseGeocode
+  reverseGeocode,
+  getNearbyRequests as getNearbyRequestsSupabase
 } from '../services/routeService'
 // Backend API functions for route optimization
 import {
@@ -184,57 +185,121 @@ export default function RouteOptimizer({ user }) {
               // Wait a moment for database to update
               await new Promise(resolve => setTimeout(resolve, 1000))
             } else {
-              // Show specific errors if available
-              const errorMsg = geocodeResult.errors && geocodeResult.errors.length > 0
-                ? `Could not geocode requests: ${geocodeResult.errors.slice(0, 2).join('; ')}`
-                : 'Could not add location data. Check that addresses are valid (e.g., "New York, NY" instead of just "New York").'
-              setError(errorMsg)
+              // Show specific errors if available, but don't block the process
+              if (geocodeResult.errors && geocodeResult.errors.length > 0) {
+                const errorPreview = geocodeResult.errors.slice(0, 2).join('; ')
+                setError(`ℹ️ Could not geocode ${geocodeResult.total} request(s): ${errorPreview}. Continuing with requests that have valid coordinates...`)
+              } else {
+                setError('ℹ️ Could not add location data to some requests. Continuing with requests that have valid coordinates...')
+              }
               // Still try to find requests - maybe some already have coordinates
             }
           } else {
-            setError(`Error geocoding: ${geocodeResult.message}`)
+            // Make it less alarming
+            setError(`ℹ️ ${geocodeResult.message || 'Could not geocode some requests. Continuing...'}`)
             // Still try to find requests
           }
         }
       }
       
-      const requests = await getNearbyRequestsAPI(lat, lng, 50) // 50km radius
-      console.log('Found nearby requests:', requests.length)
+      let requests = await getNearbyRequestsAPI(lat, lng, 50) // 50km radius
       
-      if (requests.length === 0) {
-        // Check if there are any requests at all
-        const { data: allRequests } = await supabase
-          .from('requests')
-          .select('id, location, address, status, latitude, longitude')
-          .in('status', ['open', 'pending'])
-        
-        console.log('All requests:', allRequests)
-        
-        if (allRequests && allRequests.length > 0) {
-          const withoutCoords = allRequests.filter(r => !r.latitude || !r.longitude)
-          const withCoords = allRequests.filter(r => r.latitude && r.longitude)
-          
-          console.log(`Requests without coords: ${withoutCoords.length}, with coords: ${withCoords.length}`)
-          
-          if (withoutCoords.length > 0) {
-            // Show which requests need geocoding
-            const locations = withoutCoords.map(r => r.location || r.address || 'unknown').slice(0, 3)
-            setError(`Found ${allRequests.length} request(s) but ${withoutCoords.length} still need location data (${locations.join(', ')}). Make sure addresses are specific (e.g., "New York, NY" not just "New York"). Click "Find Nearby Requests" again.`)
-          } else if (withCoords.length > 0) {
-            // All have coordinates but none are nearby - show their locations
-            const locations = withCoords.map(r => r.location || r.address || 'unknown').slice(0, 3)
-            setError(`No requests found within 50km. Found ${withCoords.length} request(s) with location data (${locations.join(', ')}), but they're all further away from your location (${volunteerLocation.address}). Try creating a request in your area or changing your location.`)
-          } else {
-            setError(`Found ${allRequests.length} request(s) but none have valid location data.`)
-          }
-        } else {
-          setError('No requests found. Create a request first, then try again.')
+      // Handle null/undefined response (backend unavailable) - use Supabase fallback
+      if (!Array.isArray(requests) || requests === null) {
+        console.warn('Backend unavailable, using Supabase fallback for nearby requests')
+        try {
+          requests = await getNearbyRequestsSupabase(lat, lng, 50)
+        } catch (fallbackError) {
+          console.warn('Supabase fallback also failed:', fallbackError)
+          requests = []
         }
-      } else {
-        setError('')
       }
       
-      setNearbyRequests(requests)
+      const requestsArray = Array.isArray(requests) ? requests : []
+      console.log('Found nearby requests:', requestsArray.length)
+      
+      // Always check for all requests with coordinates to show them even if not nearby
+      const { data: allRequests } = await supabase
+        .from('requests')
+        .select('id, location, address, status, latitude, longitude, name, aid_type, priority')
+        .in('status', ['open', 'pending'])
+      
+      console.log('All requests:', allRequests)
+      
+      if (allRequests && allRequests.length > 0) {
+        const withoutCoords = allRequests.filter(r => !r.latitude || !r.longitude)
+        const withCoords = allRequests.filter(r => r.latitude && r.longitude)
+        
+        console.log(`Requests without coords: ${withoutCoords.length}, with coords: ${withCoords.length}`)
+        
+        // Calculate distances for all requests with coordinates
+        const requestsWithDistance = withCoords.map(r => {
+          const reqLat = parseFloat(r.latitude)
+          const reqLng = parseFloat(r.longitude)
+          if (isNaN(reqLat) || isNaN(reqLng)) return null
+          
+          // Calculate distance using Haversine formula
+          const R = 6371 // Earth's radius in km
+          const dLat = (reqLat - lat) * Math.PI / 180
+          const dLng = (reqLng - lng) * Math.PI / 180
+          const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat * Math.PI / 180) * Math.cos(reqLat * Math.PI / 180) *
+            Math.sin(dLng/2) * Math.sin(dLng/2)
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+          const distance = R * c
+          
+          return { ...r, distance_km: distance }
+        }).filter(r => r !== null)
+        
+        // Sort by distance
+        requestsWithDistance.sort((a, b) => a.distance_km - b.distance_km)
+        
+        // Show nearby requests (within 50km) or all if none nearby
+        const nearbyRequests = requestsWithDistance.filter(r => r.distance_km <= 50)
+        const requestsToShow = nearbyRequests.length > 0 ? nearbyRequests : requestsWithDistance
+        
+        setNearbyRequests(requestsToShow)
+        
+        // Set appropriate error/warning messages
+        if (withoutCoords.length > 0) {
+          // Some requests couldn't be geocoded
+          const locations = withoutCoords.map(r => {
+            const addr = r.location || r.address || 'unknown'
+            return addr.length > 30 ? addr.substring(0, 30) + '...' : addr
+          }).slice(0, 3)
+          
+          const locationList = locations.length > 0 ? `: ${locations.join(', ')}` : ''
+          
+          if (requestsToShow.length > 0) {
+            // Show info message but still display valid requests
+            setError(
+              `✓ Showing ${requestsToShow.length} request(s) with valid coordinates. ` +
+              `${withoutCoords.length} request(s) could not be geocoded${locationList} and are not shown. ` +
+              `To include them, edit those requests and update with valid addresses.`
+            )
+          } else {
+            // No valid requests to show - this is an actual problem
+            setError(
+              `⚠️ Found ${allRequests.length} request(s) but ${withoutCoords.length} need valid location data${locationList}. ` +
+              `These addresses could not be geocoded. Please edit these requests and update them with valid addresses ` +
+              `(e.g., "123 Main St, Charlotte, NC 28202" instead of test data).`
+            )
+          }
+        } else if (requestsToShow.length === 0) {
+          // All have coordinates but none nearby
+          setError(`ℹ️ No requests found within 50km of your location. Found ${withCoords.length} request(s) with location data, but they're all further away. Try creating a request in your area or changing your location.`)
+        } else if (nearbyRequests.length === 0 && requestsToShow.length > 0) {
+          // Show all requests even if not nearby
+          setError(`ℹ️ No requests within 50km. Showing ${requestsToShow.length} request(s) sorted by distance (closest: ${requestsToShow[0].distance_km.toFixed(1)}km).`)
+        } else {
+          // Success - found nearby requests
+          setError('')
+        }
+      } else {
+        setError('No requests found. Create a request first, then try again.')
+        setNearbyRequests([])
+      }
     } catch (err) {
       setError('Failed to fetch nearby requests: ' + (err.message || 'Unknown error'))
       setNearbyRequests([])
@@ -265,7 +330,7 @@ export default function RouteOptimizer({ user }) {
 
     try {
       // Call backend API for route optimization
-      const route = await optimizeRouteAPI(
+      let route = await optimizeRouteAPI(
         selectedRequests.map(r => r.id),
         {
           lat: parseFloat(volunteerLocation.lat),
@@ -274,15 +339,68 @@ export default function RouteOptimizer({ user }) {
         optimizationMethod
       )
 
+      // Handle null response (backend unavailable) - use client-side fallback
+      if (!route || !route.requests) {
+        console.log('Backend unavailable, using client-side route optimization')
+        // Don't show error - this is expected behavior when backend is down
+        // setError('Backend unavailable. Using client-side optimization...')
+        
+        // Fetch full request details for client-side optimization
+        const requestIds = selectedRequests.map(r => r.id)
+        const { data: requestsData, error: fetchError } = await supabase
+          .from('requests')
+          .select('*')
+          .in('id', requestIds)
+        
+        if (fetchError || !requestsData || requestsData.length === 0) {
+          throw new Error('Failed to fetch request details')
+        }
+        
+        // Filter requests with valid coordinates
+        const validRequests = requestsData.filter(r => 
+          r.latitude && r.longitude && 
+          !isNaN(parseFloat(r.latitude)) && 
+          !isNaN(parseFloat(r.longitude))
+        )
+        
+        if (validRequests.length === 0) {
+          throw new Error('No requests with valid coordinates found')
+        }
+        
+        // Use client-side route optimizer
+        const { optimizeRoute } = await import('../utils/routeOptimizer')
+        const startLocation = {
+          lat: parseFloat(volunteerLocation.lat),
+          lng: parseFloat(volunteerLocation.lng)
+        }
+        
+        route = await optimizeRoute(validRequests, startLocation, optimizationMethod)
+        
+        if (!route || !route.requests) {
+          throw new Error('Client-side optimization failed')
+        }
+      }
+
       // Backend returns route with requests array and route data
-      setOptimizedRoute({
-        requests: route.requests,
-        distance: route.distance,
-        duration: route.duration,
-        waypoints: route.waypoints
-      })
-      alert(`Route optimized! Total distance: ${route.distance.toFixed(2)} km`)
-      await loadMyRoutes()
+      if (route && route.requests) {
+        setOptimizedRoute({
+          requests: route.requests,
+          distance: route.distance || 0,
+          duration: route.duration || 0,
+          waypoints: route.waypoints || []
+        })
+        const distanceText = route.distance ? route.distance.toFixed(2) : 'N/A'
+        const durationText = route.duration ? Math.round(route.duration / 60) : 'N/A'
+        setError('') // Clear any previous errors
+        // Show success message instead of alert
+        setTimeout(() => {
+          setError(`✓ Route optimized successfully! Distance: ${distanceText} km, Estimated time: ${durationText} min`)
+          setTimeout(() => setError(''), 5000) // Clear after 5 seconds
+        }, 100)
+        await loadMyRoutes()
+      } else {
+        throw new Error('Invalid route response')
+      }
     } catch (err) {
       setError('Failed to optimize route: ' + err.message)
       console.error('Route optimization error:', err)
@@ -615,9 +733,15 @@ export default function RouteOptimizer({ user }) {
         </div>
       )}
 
-      {/* Error Display */}
+      {/* Error/Info Display */}
       {error && (
-        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-red-700">
+        <div className={`mt-4 p-3 border rounded ${
+          error.includes('Backend unavailable') || error.includes('Using client-side') || error.startsWith('✓') || error.includes('Showing')
+            ? 'bg-blue-50 border-blue-200 text-blue-700'
+            : error.includes('Could not') || error.includes('Failed') || error.includes('Error')
+            ? 'bg-red-50 border-red-200 text-red-700'
+            : 'bg-yellow-50 border-yellow-200 text-yellow-700'
+        }`}>
           {error}
         </div>
       )}

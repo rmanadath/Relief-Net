@@ -31,20 +31,42 @@ async function apiRequest(endpoint, options = {}) {
   };
 
   console.log(`📡 Backend API Request: ${options.method || 'GET'} ${API_BASE_URL}${endpoint}`);
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers
-  });
+  
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers
+    });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: response.statusText }));
-    console.error('❌ Backend API Error:', error);
-    throw new Error(error.error || error.message || `API error: ${response.status}`);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      console.error('❌ Backend API Error:', error);
+      throw new Error(error.error || error.message || `API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log(`✅ Backend API Success: ${options.method || 'GET'} ${endpoint}`);
+    return data;
+  } catch (error) {
+    // Handle network errors (backend not running, CORS, etc.)
+    const isNetworkError = 
+      error.name === 'TypeError' || 
+      error.message.includes('fetch') || 
+      error.message.includes('Failed to fetch') ||
+      error.message.includes('NetworkError') ||
+      error.message.includes('Network request failed');
+    
+    if (isNetworkError) {
+      console.warn('⚠️ Backend API not available. The backend server may not be running.');
+      console.warn('💡 To start the backend: cd backend && npm install && npm run dev');
+      // Return empty data instead of throwing - allows UI to work without backend
+      if (options.allowFallback !== false) {
+        return null;
+      }
+      throw new Error('Backend API is not available. Please start the backend server or contact support.');
+    }
+    throw error;
   }
-
-  const data = await response.json();
-  console.log(`✅ Backend API Success: ${options.method || 'GET'} ${endpoint}`);
-  return data;
 }
 
 /**
@@ -76,7 +98,13 @@ export async function optimizeRoute(requestIds, startLocation, method = 'nearest
  * @returns {Promise<Array>} Array of nearby requests
  */
 export async function getNearbyRequests(lat, lng, maxDistance = 50) {
-  return apiRequest(`/api/routes/nearby?lat=${lat}&lng=${lng}&maxDistance=${maxDistance}`);
+  try {
+    const requests = await apiRequest(`/api/routes/nearby?lat=${lat}&lng=${lng}&maxDistance=${maxDistance}`);
+    return requests || []; // Return empty array if backend is unavailable
+  } catch (error) {
+    console.warn('Could not load nearby requests from backend:', error.message);
+    return []; // Return empty array if backend is unavailable
+  }
 }
 
 /**
@@ -84,7 +112,13 @@ export async function getNearbyRequests(lat, lng, maxDistance = 50) {
  * @returns {Promise<Array>} Array of optimized routes
  */
 export async function getVolunteerRoutes() {
-  return apiRequest('/api/routes/my-routes');
+  try {
+    const routes = await apiRequest('/api/routes/my-routes');
+    return routes || [];
+  } catch (error) {
+    console.warn('Could not load routes from backend:', error.message);
+    return []; // Return empty array if backend is unavailable
+  }
 }
 
 /**
