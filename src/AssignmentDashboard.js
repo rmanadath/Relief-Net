@@ -101,7 +101,7 @@ export default function AssignmentDashboard({ user }) {
       const { data, error } = await supabase
         .from('requests')
         .select('*')
-        .in('status', ['open', 'in-progress']);
+        .in('status', ['open', 'in-progress', 'pending']);
 
       if (error) throw error;
       
@@ -472,10 +472,12 @@ export default function AssignmentDashboard({ user }) {
                 )}
                 
                 {/* Request Markers */}
-                {requests.map(request => (
+                {requests
+                  .filter(request => request.latitude != null && request.longitude != null)
+                  .map(request => (
                   <MapComponents.Marker
                     key={request.id}
-                    position={[request.latitude, request.longitude]}
+                    position={[parseFloat(request.latitude), parseFloat(request.longitude)]}
                     icon={getMarkerIcon(request.status)}
                   >
                     <MapComponents.Popup>
