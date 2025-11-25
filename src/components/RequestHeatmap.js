@@ -10,14 +10,19 @@ function HeatmapLayer({ data }) {
   const heatLayerRef = useRef(null);
 
   useEffect(() => {
-    if (!data || data.length === 0) return;
+    if (!data || data.length === 0 || !map) return;
 
     // Convert data to heatmap format: [lat, lng, intensity]
-    const heatData = data.map(point => [
-      point.latitude,
-      point.longitude,
-      point.intensity || 1 // Default intensity is 1 if not specified
-    ]);
+    // Filter out invalid coordinates
+    const heatData = data
+      .filter(point => point.latitude != null && point.longitude != null)
+      .map(point => [
+        parseFloat(point.latitude),
+        parseFloat(point.longitude),
+        point.intensity || 1 // Default intensity is 1 if not specified
+      ]);
+
+    if (heatData.length === 0) return;
 
     // Remove existing heat layer if it exists
     if (heatLayerRef.current) {
@@ -25,20 +30,27 @@ function HeatmapLayer({ data }) {
     }
 
     // Add new heat layer
-    heatLayerRef.current = L.heatLayer(heatData, {
-      radius: 25,
-      blur: 15,
-      maxZoom: 17,
-      max: 1.0,
-      gradient: { 0.4: 'blue', 0.6: 'cyan', 0.7: 'lime', 0.8: 'yellow', 1.0: 'red' }
-    }).addTo(map);
+    try {
+      heatLayerRef.current = L.heatLayer(heatData, {
+        radius: 25,
+        blur: 15,
+        maxZoom: 17,
+        max: 1.0,
+        gradient: { 0.4: 'blue', 0.6: 'cyan', 0.7: 'lime', 0.8: 'yellow', 1.0: 'red' }
+      }).addTo(map);
 
-    // Fit map to bounds of heatmap data
-    if (data.length > 0) {
-      const group = new L.featureGroup(
-        data.map(point => L.marker([point.latitude, point.longitude]))
-      );
-      map.fitBounds(group.getBounds().pad(0.1));
+      // Fit map to bounds of heatmap data
+      if (heatData.length > 0) {
+        const validData = data.filter(point => point.latitude != null && point.longitude != null);
+        if (validData.length > 0) {
+          const group = new L.featureGroup(
+            validData.map(point => L.marker([parseFloat(point.latitude), parseFloat(point.longitude)]))
+          );
+          map.fitBounds(group.getBounds().pad(0.1));
+        }
+      }
+    } catch (error) {
+      console.error('Error adding heat layer:', error);
     }
 
     // Cleanup function

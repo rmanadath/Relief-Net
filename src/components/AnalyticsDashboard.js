@@ -176,11 +176,11 @@ export default function AnalyticsDashboard() {
   };
 
   const volunteerPerformanceData = {
-    labels: metrics.volunteerStats.map(v => v.name),
+    labels: (metrics.volunteerStats || []).map(v => v.name),
     datasets: [
       {
         label: 'Completed Requests',
-        data: metrics.volunteerStats.map(v => v.completed),
+        data: (metrics.volunteerStats || []).map(v => v.completed),
         backgroundColor: 'rgba(75, 192, 192, 0.6)',
         borderColor: 'rgba(75, 192, 192, 1)',
         borderWidth: 1,
@@ -303,8 +303,8 @@ export default function AnalyticsDashboard() {
                   tooltip: {
                     callbacks: {
                       afterLabel: (context) => {
-                        const volunteer = metrics.volunteerStats[context.dataIndex];
-                        return `Completion Rate: ${volunteer.completionRate}%`;
+                        const volunteer = (metrics.volunteerStats || [])[context.dataIndex];
+                        return volunteer ? `Completion Rate: ${volunteer.completionRate}%` : '';
                       },
                     },
                   },
@@ -332,7 +332,7 @@ export default function AnalyticsDashboard() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {metrics.volunteerStats.map((volunteer) => (
+              {(metrics.volunteerStats || []).map((volunteer) => (
                 <tr key={volunteer.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {volunteer.name}
