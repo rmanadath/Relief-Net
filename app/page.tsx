@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Navigation from "../src/components/Navigation";
 
 // Import the shared component
 declare global {
@@ -19,26 +20,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Navigation */}
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-indigo-600">Relief-Net</h1>
-            </div>
-            <div className="flex items-center space-x-8">
-              <Link href="/" className="text-gray-700 hover:text-indigo-600 font-medium">
-                Home
-              </Link>
-              <Link href="/login" className="text-gray-700 hover:text-indigo-600 font-medium">
-                Login
-              </Link>
-              <Link href="/post-request" className="text-gray-700 hover:text-indigo-600 font-medium">
-                Post Request
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navigation />
 
       {/* Hero Section */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
