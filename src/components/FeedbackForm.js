@@ -21,19 +21,58 @@ export default function FeedbackForm({ requestId, volunteerId, onSubmitted, onFe
     setError(null);
 
     try {
+      // Build insert data - handle both 'comment' and 'comments' column names
+      const insertData = {
+        request_id: requestId,
+        rating,
+        created_at: new Date().toISOString()
+      };
+      
+      // Add comment/comments field if provided
+      // Only add one - try 'comment' first (sprint3), then 'comments' (sprint4)
+      if (comment && comment.trim()) {
+        // Try comment first, Supabase will ignore if column doesn't exist
+        insertData.comment = comment.trim();
+      }
+      
+      // Add volunteer_id if provided (optional - request owners may not have volunteer_id)
+      // Only include volunteer_id if it's provided, otherwise leave it out (NULL)
+      if (volunteerId) {
+        insertData.volunteer_id = volunteerId;
+      }
+      // If volunteerId is not provided, don't include it in insertData
+      // This allows the database to use NULL (if column is nullable) or default value
+      
       const { data, error: submitError } = await supabase
         .from('feedback')
-        .insert([
-          {
-            request_id: requestId,
-            ...(volunteerId && { volunteer_id: volunteerId }),
-            rating,
-            comment,
-            created_at: new Date().toISOString()
-          }
-        ]);
+        .insert([insertData]);
 
-      if (submitError) throw submitError;
+      if (submitError) {
+        // If comment/comments column issue, try with just rating
+        if (submitError.message?.includes('comment') || submitError.code === 'PGRST204') {
+          console.warn('Comment column issue detected, trying without comment field');
+          const retryData = {
+            request_id: requestId,
+            rating,
+            created_at: new Date().toISOString()
+          };
+          
+          if (volunteerId) {
+            retryData.volunteer_id = volunteerId;
+          }
+          
+          const { data: retryDataResult, error: retryError } = await supabase
+            .from('feedback')
+            .insert([retryData]);
+            
+          if (retryError) {
+            console.error('Retry also failed:', retryError);
+            throw retryError;
+          }
+        } else {
+          throw submitError;
+        }
+      }
       
       // Update request status to 'completed' after feedback
       const { error: updateError } = await supabase

@@ -8,10 +8,18 @@ import AdminPanel from './AdminPanel'
 import RouteOptimizer from './components/RouteOptimizer'
 
 export default function Dashboard({ user }) {
+  const isAdmin = user.role === 'admin'
+  // Normal users should start on 'post' tab, admins can access all tabs
   const [activeTab, setActiveTab] = useState('post')
   const [refreshKey, setRefreshKey] = useState(0)
   const [AssignmentDashboard, setAssignmentDashboard] = useState(null)
-  const isAdmin = user.role === 'admin'
+  
+  // Prevent normal users from accessing admin tabs
+  useEffect(() => {
+    if (!isAdmin && (activeTab === 'admin' || activeTab === 'assign')) {
+      setActiveTab('post')
+    }
+  }, [isAdmin, activeTab])
 
   // Dynamically load AssignmentDashboard only on client side (Leaflet requires window)
   useEffect(() => {

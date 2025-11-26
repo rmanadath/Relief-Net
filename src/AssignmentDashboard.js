@@ -135,24 +135,97 @@ export default function AssignmentDashboard({ user }) {
   };
 
   // Fetch volunteers
+  // This includes:
+  // 1. Users from profiles table (with IDs)
+  // 2. Assigned volunteer names from requests table (text names like "john smith")
   const fetchVolunteers = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      const volunteersMap = new Map(); // Use Map to avoid duplicates
+      
+      // 1. Fetch assigned volunteer names from requests
+      const { data: requestsData, error: requestsError } = await supabase
+        .from('requests')
+        .select('assigned_volunteer')
+        .not('assigned_volunteer', 'is', null);
+      
+      if (!requestsError && requestsData) {
+        requestsData.forEach(request => {
+          const volunteerName = request.assigned_volunteer?.trim();
+          if (volunteerName) {
+            // Use the name as both key and display value
+            volunteersMap.set(volunteerName.toLowerCase(), {
+              id: `name_${volunteerName.toLowerCase().replace(/\s+/g, '_')}`, // Generate unique ID
+              name: volunteerName,
+              type: 'assigned', // Mark as assigned volunteer
+              email: null
+            });
+          }
+        });
+      }
+      
+      // 2. Fetch users from profiles table
+      let fetchedUsers = [];
+      
+      const { data: dataWithLocation, error: errorWithLocation } = await supabase
         .from('profiles')
-        .select('*')
-        .eq('role', 'volunteer');
-
-      if (error) throw error;
-      setVolunteers(data || []);
+        .select('id, role, volunteer_location, volunteer_latitude, volunteer_longitude')
+        .not('volunteer_location', 'is', null)
+        .or('role.eq.user,role.eq.admin');
+      
+      if (!errorWithLocation && dataWithLocation && dataWithLocation.length > 0) {
+        fetchedUsers = dataWithLocation;
+      } else {
+        // Fallback: fetch all users without location requirement
+        const { data: allUsers, error: allUsersError } = await supabase
+          .from('profiles')
+          .select('id, role')
+          .or('role.eq.user,role.eq.admin');
+        
+        if (allUsersError) {
+          console.error('Error fetching all users:', allUsersError);
+          throw allUsersError;
+        }
+        fetchedUsers = allUsers || [];
+      }
+      
+      // Add users to the map (don't overwrite assigned volunteers with same name)
+      fetchedUsers.forEach(user => {
+        const displayName = `User ${user.id.slice(0, 8)}`;
+        // Only add if not already in map (avoid duplicates with assigned volunteers)
+        if (!volunteersMap.has(displayName.toLowerCase())) {
+          volunteersMap.set(user.id, {
+            id: user.id,
+            name: displayName,
+            type: 'user',
+            email: null,
+            volunteer_location: user.volunteer_location,
+            volunteer_latitude: user.volunteer_latitude,
+            volunteer_longitude: user.volunteer_longitude
+          });
+        }
+      });
+      
+      // Convert map to array and sort by name
+      const volunteersArray = Array.from(volunteersMap.values()).sort((a, b) => 
+        a.name.localeCompare(b.name)
+      );
+      
+      setVolunteers(volunteersArray);
+      console.log('Fetched volunteers:', volunteersArray.length, '(', 
+        volunteersArray.filter(v => v.type === 'assigned').length, 'assigned,',
+        volunteersArray.filter(v => v.type === 'user').length, 'users)');
       
       // If no volunteer is selected, select the first one by default
-      if (data && data.length > 0 && !selectedVolunteer) {
-        setSelectedVolunteer(data[0].id);
+      if (volunteersArray.length > 0 && !selectedVolunteer) {
+        setSelectedVolunteer(volunteersArray[0].id);
       }
     } catch (err) {
-      setError('Failed to fetch volunteers: ' + (err.message || 'Unknown error'));
       console.error('Error fetching volunteers:', err);
+      setError('Failed to fetch volunteers: ' + (err.message || 'Unknown error'));
+      // Set empty array so dropdown doesn't break
+      setVolunteers([]);
     } finally {
       setLoading(false);
     }
@@ -165,11 +238,33 @@ export default function AssignmentDashboard({ user }) {
 
   const toggleRequestSelection = (request) => {
     setSelectedRequests(prev => {
-      if (prev.includes(request.id)) {
-        return prev.filter(id => id !== request.id);
+      const newSelection = prev.includes(request.id)
+        ? prev.filter(id => id !== request.id)
+        : [...prev, request.id];
+      
+      // Update map bounds to show all selected requests when at least one is selected
+      // If all are deselected, show all requests
+      if (newSelection.length > 0) {
+        const selectedRequestData = requests.filter(req => newSelection.includes(req.id));
+        const requestLocations = selectedRequestData
+          .filter(req => req.latitude && req.longitude)
+          .map(req => ({ lat: req.latitude, lng: req.longitude }));
+        
+        if (requestLocations.length > 0) {
+          setMapBounds(getBounds(requestLocations));
+        }
       } else {
-        return [...prev, request.id];
+        // Show all requests if nothing is selected
+        const allRequestLocations = requests
+          .filter(req => req.latitude && req.longitude)
+          .map(req => ({ lat: req.latitude, lng: req.longitude }));
+        
+        if (allRequestLocations.length > 0) {
+          setMapBounds(getBounds(allRequestLocations));
+        }
       }
+      
+      return newSelection;
     });
   };
 
@@ -369,12 +464,28 @@ export default function AssignmentDashboard({ user }) {
               disabled={loading}
             >
               <option value="">Select a volunteer</option>
-              {volunteers.map(volunteer => (
-                <option key={volunteer.id} value={volunteer.id}>
-                  {volunteer.full_name || `Volunteer ${volunteer.id.slice(0, 6)}`}
-                </option>
-              ))}
+              {volunteers.length === 0 ? (
+                <option value="" disabled>No volunteers found</option>
+              ) : (
+                volunteers.map(volunteer => {
+                  // Get display name from various possible fields
+                  const displayName = volunteer.name || 
+                                    volunteer.email ||
+                                    volunteer.full_name ||
+                                    `User ${volunteer.id.slice(0, 8)}`;
+                  return (
+                    <option key={volunteer.id} value={volunteer.id}>
+                      {displayName}
+                    </option>
+                  );
+                })
+              )}
             </select>
+            {volunteers.length === 0 && (
+              <p className="text-xs text-gray-500 mt-1">
+                No volunteers found. Users need to set their location in Route Optimizer to appear here.
+              </p>
+            )}
           </div>
 
           {/* Request List */}
@@ -464,46 +575,65 @@ export default function AssignmentDashboard({ user }) {
                   >
                     <MapComponents.Popup>
                       <div className="font-medium">
-                        {volunteers.find(v => v.id === selectedVolunteer)?.full_name || 'Volunteer'}
+                        {volunteers.find(v => v.id === selectedVolunteer)?.name || 'Volunteer'}
                       </div>
                       <div className="text-sm text-gray-600">Your current location</div>
                     </MapComponents.Popup>
                   </MapComponents.Marker>
                 )}
                 
-                {/* Request Markers */}
+                {/* Request Markers - Show all requests, highlight selected ones */}
                 {requests
                   .filter(request => request.latitude != null && request.longitude != null)
-                  .map(request => (
-                  <MapComponents.Marker
-                    key={request.id}
-                    position={[parseFloat(request.latitude), parseFloat(request.longitude)]}
-                    icon={getMarkerIcon(request.status)}
-                  >
-                    <MapComponents.Popup>
-                      <div>
-                        <h4 className="font-medium">{request.name || 'Unnamed Request'}</h4>
-                        <p className="text-sm">{request.aid_type}</p>
-                        <p className="text-sm">{request.description}</p>
-                        <div className="mt-1 text-xs text-gray-500">
-                          <div>Priority: <span className="capitalize">{request.priority || 'medium'}</span></div>
-                          <div>Status: <span className="capitalize">{request.status || 'open'}</span></div>
-                          {request.status === 'in-progress' && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRequestCompletion(request.id);
-                              }}
-                              className="mt-2 px-2 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600"
-                            >
-                              Mark as Completed
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </MapComponents.Popup>
-                  </MapComponents.Marker>
-                ))}
+                  .map(request => {
+                    const isSelected = selectedRequests.includes(request.id);
+                    // Use different icon for selected requests (larger, different color)
+                    const markerIcon = isSelected 
+                      ? MapComponents.L.icon({
+                          iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+                          shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                          iconSize: [35, 51], // Larger for selected
+                          iconAnchor: [17, 51],
+                          popupAnchor: [1, -34],
+                          shadowSize: [41, 41]
+                        })
+                      : getMarkerIcon(request.status);
+                    
+                    return (
+                      <MapComponents.Marker
+                        key={request.id}
+                        position={[parseFloat(request.latitude), parseFloat(request.longitude)]}
+                        icon={markerIcon}
+                        zIndexOffset={isSelected ? 1000 : 0} // Bring selected markers to front
+                      >
+                        <MapComponents.Popup>
+                          <div>
+                            <h4 className="font-medium">
+                              {request.name || 'Unnamed Request'}
+                              {isSelected && <span className="ml-2 text-blue-600">✓ Selected</span>}
+                            </h4>
+                            <p className="text-sm">{request.aid_type}</p>
+                            <p className="text-sm">{request.description}</p>
+                            <div className="mt-1 text-xs text-gray-500">
+                              <div>Priority: <span className="capitalize">{request.priority || 'medium'}</span></div>
+                              <div>Status: <span className="capitalize">{request.status || 'open'}</span></div>
+                              {request.status === 'in-progress' && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRequestCompletion(request.id);
+                                  }}
+                                  className="mt-2 px-2 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600"
+                                >
+                                  Mark as Completed
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </MapComponents.Popup>
+                      </MapComponents.Marker>
+                    );
+                  })}
                 
                 {optimizedRoute && optimizedRoute.route && (
                   <MapComponents.Polyline

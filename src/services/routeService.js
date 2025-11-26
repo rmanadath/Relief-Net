@@ -144,7 +144,10 @@ export async function geocodeExistingRequests() {
     const errors = []
     const results = []
 
-    // Geocode each request
+    // Geocode each request with timeout protection
+    const GEOCODE_TIMEOUT = 5000 // 5 seconds per request
+    const RATE_LIMIT_DELAY = 1100 // 1.1 seconds between requests
+    
     for (let i = 0; i < requests.length; i++) {
       const request = requests[i]
       const address = request.address || request.location
@@ -156,9 +159,17 @@ export async function geocodeExistingRequests() {
       try {
         console.log(`Geocoding ${i + 1}/${requests.length}: "${address}"`)
         
-        const geocoded = await geocodeAddress(address)
+        // Add timeout to geocoding call
+        const geocodePromise = geocodeAddress(address)
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Geocoding timeout')), GEOCODE_TIMEOUT)
+        )
+        
+        const geocoded = await Promise.race([geocodePromise, timeoutPromise])
+        
         if (geocoded.lat && geocoded.lng) {
-          const { error: updateError } = await supabase
+          // Update with timeout protection
+          const updatePromise = supabase
             .from('requests')
             .update({
               latitude: geocoded.lat,
@@ -167,6 +178,17 @@ export async function geocodeExistingRequests() {
             })
             .eq('id', request.id)
 
+        
+          
+          const updateTimeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Database update timeout')), 3000)
+          )
+          
+          const { error: updateError } = await Promise.race([
+            updatePromise.then(result => result),
+            updateTimeoutPromise
+          ])
+          
           if (!updateError) {
             geocodedCount++
             console.log(`✓ Successfully geocoded: "${address}" → ${geocoded.lat}, ${geocoded.lng}`)
@@ -185,16 +207,21 @@ export async function geocodeExistingRequests() {
         }
 
         // Rate limit: wait 1.1 seconds between requests (Nominatim requirement is 1/sec)
+        // But only if not the last request
         if (i < requests.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1100))
+          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY))
         }
       } catch (err) {
-        const errorMsg = `Error geocoding "${address}": ${err.message}`
+        const errorMsg = err.message === 'Geocoding timeout' 
+          ? `Timeout geocoding "${address.substring(0, 30)}..." (took longer than 5 seconds)`
+          : err.message === 'Database update timeout'
+          ? `Timeout updating request ${request.id} in database`
+          : `Error geocoding "${address}": ${err.message}`
         console.error(errorMsg, err)
         errors.push(errorMsg)
-        // Still wait to respect rate limit
+        // Still wait to respect rate limit, but don't block if it's the last one
         if (i < requests.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1100))
+          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY))
         }
       }
     }
@@ -501,28 +528,44 @@ export async function geocodeAddress(address) {
     const encodedAddress = encodeURIComponent(address.trim())
     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1`
     
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'ReliefNet/1.0' // Required by Nominatim
-      }
-    })
-
-    if (!response.ok) {
-      console.warn('Geocoding API error:', response.status)
-      return { lat: null, lng: null }
-    }
-
-    const data = await response.json()
+    // Add timeout to fetch (5 seconds)
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000)
     
-    if (data && data.length > 0) {
-      const result = data[0]
-      return {
-        lat: parseFloat(result.lat),
-        lng: parseFloat(result.lon)
-      }
-    }
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'ReliefNet/1.0' // Required by Nominatim
+        },
+        signal: controller.signal
+      })
+      
+      clearTimeout(timeoutId)
 
-    return { lat: null, lng: null }
+      if (!response.ok) {
+        console.warn('Geocoding API error:', response.status)
+        return { lat: null, lng: null }
+      }
+
+      const data = await response.json()
+      
+      if (data && data.length > 0) {
+        const result = data[0]
+        return {
+          lat: parseFloat(result.lat),
+          lng: parseFloat(result.lon)
+        }
+      }
+
+      return { lat: null, lng: null }
+    } catch (fetchError) {
+      clearTimeout(timeoutId)
+      if (fetchError.name === 'AbortError') {
+        console.warn('Geocoding request timed out after 5 seconds')
+        return { lat: null, lng: null }
+      }
+      throw fetchError
+    }
   } catch (error) {
     console.error('Error geocoding address:', error)
     return { lat: null, lng: null }

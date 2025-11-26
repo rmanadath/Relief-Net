@@ -174,10 +174,18 @@ export default function RouteOptimizer({ user }) {
         )
         
         if (requestsToGeocode.length > 0) {
-          setError(`Adding location data to ${requestsToGeocode.length} request(s)... This will take about ${requestsToGeocode.length} second(s).`)
+          const estimatedTime = Math.ceil(requestsToGeocode.length * 1.2) // 1.2 seconds per request (slightly more than 1.1)
+          setError(`Adding location data to ${requestsToGeocode.length} request(s)... This will take about ${estimatedTime} second(s).`)
           
-          const geocodeResult = await geocodeExistingRequests()
-          console.log('Geocoding result:', geocodeResult)
+          // Add overall timeout for geocoding (max 30 seconds total)
+          const geocodeTimeout = setTimeout(() => {
+            setError(`⚠️ Geocoding is taking longer than expected. Continuing with requests that have valid coordinates...`)
+          }, 30000)
+          
+          try {
+            const geocodeResult = await geocodeExistingRequests()
+            clearTimeout(geocodeTimeout)
+            console.log('Geocoding result:', geocodeResult)
           
           if (geocodeResult.success) {
             if (geocodeResult.geocoded > 0) {
@@ -198,6 +206,12 @@ export default function RouteOptimizer({ user }) {
             // Make it less alarming
             setError(`ℹ️ ${geocodeResult.message || 'Could not geocode some requests. Continuing...'}`)
             // Still try to find requests
+          }
+          } catch (geocodeError) {
+            clearTimeout(geocodeTimeout)
+            console.error('Geocoding error:', geocodeError)
+            setError(`ℹ️ Could not add location data to some requests. Continuing with requests that have valid coordinates...`)
+            // Continue anyway - maybe some requests already have coordinates
           }
         }
       }
@@ -705,7 +719,7 @@ export default function RouteOptimizer({ user }) {
             <ol className="list-decimal list-inside space-y-1">
               {optimizedRoute.requests.map((request, index) => (
                 <li key={request.id} className="text-sm">
-                  {index + 1}. {request.name} - {request.location || request.address}
+                  {request.name} - {request.location || request.address}
                   {request.distanceFromPrevious && (
                     <span className="text-gray-600">
                       {' '}({request.distanceFromPrevious.toFixed(2)} km from previous)
