@@ -96,6 +96,26 @@ export default function Auth() {
         >
           {isLogin ? 'Need an account? Sign Up' : 'Have an account? Login'}
         </button>
+        <button 
+          type="button" 
+          className="w-full bg-red-50 hover:bg-red-100 text-red-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors"
+          onClick={() => {
+            setEmail('testadmin@relief.net')
+            setPassword('AdminPass')
+          }}
+        >
+          Fill Test Admin
+        </button>
+        <button 
+          type="button" 
+          className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors"
+          onClick={() => {
+            setEmail('testuser@relief.net')
+            setPassword('UserPass')
+          }}
+        >
+          Fill Test User
+        </button>
       </div>
     </form>
     </div>
