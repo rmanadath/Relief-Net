@@ -177,7 +177,9 @@ export async function geocodeExistingRequests() {
             errors.push(errorMsg)
           }
         } else {
-          const errorMsg = `Could not geocode: "${address}" - API returned no coordinates`
+          // Still try to geocode - even if it looks like test data, the API might recognize it
+          // (e.g., "antarctica" could actually be geocoded to Antarctica)
+          const errorMsg = `Could not geocode: "${address.substring(0, 50)}${address.length > 50 ? '...' : ''}" - API returned no coordinates. The address may not be recognized.`
           console.warn(errorMsg)
           errors.push(errorMsg)
         }
@@ -240,6 +242,24 @@ export async function updateVolunteerLocation(userId, location, lat, lng) {
         console.log('Geocoded to:', finalLat, finalLng)
       } else {
         console.warn('Could not geocode address:', location)
+        // Try geocoding with just city/zip if full address fails
+        const addressParts = location.split(',').map(s => s.trim())
+        if (addressParts.length > 1) {
+          // Try with just the city/state/zip part
+          const cityStateZip = addressParts.slice(-1)[0] // Last part (e.g., "NY 11203")
+          console.log('Trying fallback geocoding with:', cityStateZip)
+          const fallbackGeocoded = await geocodeAddress(cityStateZip)
+          if (fallbackGeocoded.lat && fallbackGeocoded.lng) {
+            finalLat = fallbackGeocoded.lat
+            finalLng = fallbackGeocoded.lng
+            console.log('Fallback geocoded to:', finalLat, finalLng)
+          } else {
+            // Return error object instead of false to provide more info
+            return { success: false, error: `Could not find coordinates for "${location}". The specific street address may not be in our database. Try using just the city and zip code (e.g., "Brooklyn, NY 11203") or a nearby landmark.` }
+          }
+        } else {
+          return { success: false, error: `Could not find coordinates for "${location}". Please try a more specific address (e.g., include city and state).` }
+        }
       }
     }
 
@@ -274,14 +294,14 @@ export async function updateVolunteerLocation(userId, location, lat, lng) {
           location
         })
         console.error('Error updating volunteer location:', updateError)
-        return false
+        return { success: false, error: updateError.message || 'Failed to save location to database' }
       }
     }
 
-    return true
+    return { success: true }
   } catch (error) {
     console.error('Error in updateVolunteerLocation:', error)
-    return false
+    return { success: false, error: error.message || 'An unexpected error occurred' }
   }
 }
 
@@ -290,7 +310,7 @@ export async function updateVolunteerLocation(userId, location, lat, lng) {
  * @param {string} volunteerId - Volunteer user ID
  * @param {Array} requestIds - Array of request IDs to include
  * @param {Object} startLocation - Starting location {lat, lng}
- * @param {string} method - Optimization method ('nearest', 'openrouteservice', 'googlemaps')
+ * @param {string} method - Optimization method ('nearest', 'openrouteservice', 'googlemaps' - optional)
  * @returns {Promise<Object>} Optimized route data
  */
 export async function createOptimizedRoute(volunteerId, requestIds, startLocation, method = 'nearest') {
@@ -344,6 +364,24 @@ export async function createOptimizedRoute(volunteerId, requestIds, startLocatio
       throw error
     }
 
+    // Validate optimized route structure
+    if (!optimizedRoute || !optimizedRoute.requests || !Array.isArray(optimizedRoute.requests)) {
+      throw new Error('Route optimization returned invalid data structure')
+    }
+
+    if (optimizedRoute.requests.length === 0) {
+      throw new Error('Route optimization returned no requests')
+    }
+
+    // Ensure distance and duration are valid numbers
+    const distance = optimizedRoute.distance != null ? parseFloat(optimizedRoute.distance) : 0
+    const duration = optimizedRoute.duration != null ? Math.round(parseFloat(optimizedRoute.duration)) : 0
+
+    // Validate that we have a valid route (distance > 0)
+    if (distance <= 0 || isNaN(distance)) {
+      throw new Error('Route optimization returned invalid distance. Please ensure all requests have valid coordinates.')
+    }
+
     // Prepare data for database
     const requestOrder = optimizedRoute.requests.map(r => r.id)
     const routeWaypoints = optimizedRoute.requests.map(r => ({
@@ -359,8 +397,8 @@ export async function createOptimizedRoute(volunteerId, requestIds, startLocatio
       .from('optimized_routes')
       .insert({
         volunteer_id: volunteerId,
-        total_distance: optimizedRoute.distance,
-        total_duration: optimizedRoute.duration,
+        total_distance: distance,
+        total_duration: duration,
         request_order: requestOrder,
         route_waypoints: routeWaypoints,
         status: 'pending'
@@ -488,5 +526,76 @@ export async function geocodeAddress(address) {
   } catch (error) {
     console.error('Error geocoding address:', error)
     return { lat: null, lng: null }
+  }
+}
+
+/**
+ * Reverse geocode coordinates to address using OpenStreetMap Nominatim (free, no API key needed)
+ * @param {number} lat - Latitude
+ * @param {number} lng - Longitude
+ * @returns {Promise<Object>} {address} address string or null if not found
+ */
+export async function reverseGeocode(lat, lng) {
+  if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
+    return { address: null }
+  }
+
+  try {
+    // Use OpenStreetMap Nominatim Reverse Geocoding API (free, no API key required)
+    // Rate limit: 1 request per second
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`
+    
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'ReliefNet/1.0' // Required by Nominatim
+      }
+    })
+
+    if (!response.ok) {
+      console.warn('Reverse geocoding API error:', response.status)
+      return { address: null }
+    }
+
+    const data = await response.json()
+    
+    if (data && data.address) {
+      // Build address string from components
+      const addr = data.address
+      const addressParts = []
+      
+      // Try to build a readable address
+      if (addr.house_number && addr.road) {
+        addressParts.push(`${addr.house_number} ${addr.road}`)
+      } else if (addr.road) {
+        addressParts.push(addr.road)
+      }
+      
+      if (addr.city) {
+        addressParts.push(addr.city)
+      } else if (addr.town) {
+        addressParts.push(addr.town)
+      } else if (addr.village) {
+        addressParts.push(addr.village)
+      }
+      
+      if (addr.state) {
+        addressParts.push(addr.state)
+      }
+      
+      if (addr.postcode) {
+        addressParts.push(addr.postcode)
+      }
+      
+      const address = addressParts.length > 0 
+        ? addressParts.join(', ')
+        : data.display_name || `${lat}, ${lng}`
+      
+      return { address }
+    }
+
+    return { address: data.display_name || null }
+  } catch (error) {
+    console.error('Error reverse geocoding coordinates:', error)
+    return { address: null }
   }
 }

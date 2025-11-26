@@ -1,17 +1,26 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from './supabase'
 import RequestForm from './RequestForm'
 import RequestList from './RequestList'
 import AdminPanel from './AdminPanel'
 import RouteOptimizer from './components/RouteOptimizer'
-import AssignmentDashboard from './AssignmentDashboard'
 
 export default function Dashboard({ user }) {
   const [activeTab, setActiveTab] = useState('post')
   const [refreshKey, setRefreshKey] = useState(0)
+  const [AssignmentDashboard, setAssignmentDashboard] = useState(null)
   const isAdmin = user.role === 'admin'
+
+  // Dynamically load AssignmentDashboard only on client side (Leaflet requires window)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      import('./AssignmentDashboard').then((mod) => {
+        setAssignmentDashboard(() => mod.default)
+      })
+    }
+  }, [])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -81,16 +90,28 @@ export default function Dashboard({ user }) {
           Route Optimizer
         </button>
         {isAdmin && (
-          <button 
-            className={`rounded-lg px-5 py-2.5 text-sm font-semibold transition-all duration-200 ${
-              activeTab === 'admin' 
-                ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-300' 
-                : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 hover:border-slate-400 hover:shadow-sm'
-            }`}
-            onClick={() => setActiveTab('admin')}
-          >
-            Admin Panel
-          </button>
+          <>
+            <button 
+              className={`rounded-lg px-5 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                activeTab === 'admin' 
+                  ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-300' 
+                  : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 hover:border-slate-400 hover:shadow-sm'
+              }`}
+              onClick={() => setActiveTab('admin')}
+            >
+              Admin Panel
+            </button>
+            <button 
+              className={`rounded-lg px-5 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                activeTab === 'assign' 
+                  ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-300' 
+                  : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 hover:border-slate-400 hover:shadow-sm'
+              }`}
+              onClick={() => setActiveTab('assign')}
+            >
+              Assignment Dashboard
+            </button>
+          </>
         )}
       </nav>
 
@@ -111,7 +132,9 @@ export default function Dashboard({ user }) {
           <AdminPanel user={user} onUpdate={handleRequestSubmitted} />
         )}
         {activeTab === 'assign' && isAdmin && (
-          <AssignmentDashboard user={user} />
+          AssignmentDashboard ? <AssignmentDashboard user={user} /> : (
+            <div className="flex items-center justify-center p-8 text-slate-600">Loading map...</div>
+          )
         )}
       </main>
     </div>

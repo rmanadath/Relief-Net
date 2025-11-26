@@ -1,13 +1,24 @@
 /**
  * Triage Score Calculator
- * Calculates priority score based on urgency, vulnerability, and request age
- * Higher score = more urgent = should be handled first
- */
-
-/**
- * Calculate triage score for a request
- * @param {Object} request - Request object with priority, created_at, etc.
- * @returns {number} Triage score (higher = more urgent)
+ * 
+ * Algorithm: Weighted Multi-Factor Scoring System
+ * Time Complexity: O(1) per request
+ * Space Complexity: O(1)
+ * 
+ * Calculates priority score based on urgency, vulnerability, and request age.
+ * Higher score = more urgent = should be handled first.
+ * 
+ * Scoring Formula:
+ * triageScore = (priorityWeight × aidTypeWeight) + ageScore + vulnerabilityScore
+ * 
+ * Components:
+ * - Priority Weights: urgent=10, high=7, medium=4, low=1
+ * - Aid Type Weights: medicine=3, shelter=2.5, food=2, clothing=1, etc.
+ * - Age Score: Increases with request age (max 5 points, 0.5 per hour)
+ * - Vulnerability Score: Future enhancement for demographic factors
+ * 
+ * @param {Object} request - Request object with priority, created_at, aid_type, etc.
+ * @returns {number} Triage score (higher = more urgent, typically 1-50 range)
  */
 export function calculateTriageScore(request) {
   // Priority weights (higher priority = higher weight)

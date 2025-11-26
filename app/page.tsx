@@ -2,7 +2,20 @@
 
 import Link from "next/link";
 
+// Import the shared component
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      PostRequestForm: any;
+    }
+  }
+}
+
+// Dynamic import to avoid SSR issues
+const PostRequestForm = require("../src/components/PostRequestForm").default;
+
 export default function Home() {
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Navigation */}
@@ -41,16 +54,16 @@ export default function Home() {
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
-              href="/login"
+              href="#post-form"
               className="bg-indigo-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
             >
-              Get Started
+              Post Request
             </Link>
             <Link
-              href="/post-request"
+              href="/login"
               className="bg-white text-indigo-600 px-8 py-3 rounded-lg font-semibold border-2 border-indigo-600 hover:bg-indigo-50 transition-colors"
             >
-              Post Request
+              Get Started
             </Link>
           </div>
         </div>
@@ -114,6 +127,11 @@ export default function Home() {
               <div className="text-gray-600">Success Rate</div>
             </div>
           </div>
+        </div>
+
+        {/* Post Request Form Section */}
+        <div id="post-form" className="mt-20 bg-white rounded-lg shadow-lg p-12">
+          <PostRequestForm variant="page" />
         </div>
 
         {/* Volunteer Info Section */}

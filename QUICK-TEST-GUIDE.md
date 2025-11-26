@@ -185,3 +185,4 @@ For a quick demo, follow this order:
 
 **That's it!** You don't need automated tests for basic functionality - manual testing is sufficient for this project.
 
+

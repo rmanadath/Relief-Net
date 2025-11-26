@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from './supabase'
-import FeedbackForm from './FeedbackForm'
+import FeedbackForm from './components/FeedbackForm'
 
 export default function RequestList({ user }) {
   const [requests, setRequests] = useState([])

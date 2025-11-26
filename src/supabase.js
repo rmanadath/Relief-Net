@@ -5,11 +5,11 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.REA
 
 // Validate environment variables
 if (!supabaseUrl) {
-  console.error('REACT_APP_SUPABASE_URL is missing!')
+  console.error('NEXT_PUBLIC_SUPABASE_URL or REACT_APP_SUPABASE_URL is missing!')
 }
 
 if (!supabaseKey) {
-  console.error('REACT_APP_SUPABASE_ANON_KEY is missing!')
+  console.error('NEXT_PUBLIC_SUPABASE_ANON_KEY or REACT_APP_SUPABASE_ANON_KEY is missing!')
 }
 
 // Ensure URL doesn't have trailing slash

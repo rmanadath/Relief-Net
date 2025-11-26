@@ -4,6 +4,11 @@
  * 
  * This service implements the Traveling Salesman Problem (TSP) solution
  * to find the optimal route for delivering aid to multiple locations.
+ * 
+ * COMPUTATIONAL ELEMENT: Implements graph algorithms and geospatial calculations
+ * - Nearest Neighbor greedy algorithm (O(n²))
+ * - Haversine formula for distance calculations (O(1))
+ * - Multiple optimization strategies (Strategy Pattern)
  */
 
 /**

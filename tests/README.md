@@ -104,3 +104,4 @@ describe('MyComponent', () => {
 - Use `npm run test:run` for faster single-run execution
 - Consider using `vi.mock()` for heavy dependencies
 
+

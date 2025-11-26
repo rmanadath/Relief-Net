@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { supabase } from '../supabase';
 
-export default function FeedbackForm({ requestId, volunteerId, onSubmitted }) {
+export default function FeedbackForm({ requestId, volunteerId, onSubmitted, onFeedbackSubmitted }) {
+  // Support both prop naming conventions
+  const handleSubmitted = onSubmitted || onFeedbackSubmitted;
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -24,7 +26,7 @@ export default function FeedbackForm({ requestId, volunteerId, onSubmitted }) {
         .insert([
           {
             request_id: requestId,
-            volunteer_id: volunteerId,
+            ...(volunteerId && { volunteer_id: volunteerId }),
             rating,
             comment,
             created_at: new Date().toISOString()
@@ -42,7 +44,7 @@ export default function FeedbackForm({ requestId, volunteerId, onSubmitted }) {
       if (updateError) throw updateError;
 
       setIsSubmitted(true);
-      if (onSubmitted) onSubmitted();
+      if (handleSubmitted) handleSubmitted();
     } catch (err) {
       console.error('Error submitting feedback:', err);
       setError(err.message || 'Failed to submit feedback');
