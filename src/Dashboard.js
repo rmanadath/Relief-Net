@@ -14,9 +14,9 @@ export default function Dashboard({ user }) {
   const [refreshKey, setRefreshKey] = useState(0)
   const [AssignmentDashboard, setAssignmentDashboard] = useState(null)
   
-  // Prevent normal users from accessing admin tabs
+  // Prevent normal users from accessing admin/volunteer tabs
   useEffect(() => {
-    if (!isAdmin && (activeTab === 'admin' || activeTab === 'assign')) {
+    if (!isAdmin && (activeTab === 'admin' || activeTab === 'assign' || activeTab === 'routes')) {
       setActiveTab('post')
     }
   }, [isAdmin, activeTab])
@@ -87,16 +87,19 @@ export default function Dashboard({ user }) {
         >
           View Requests
         </button>
-        <button 
-          className={`rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 ${
-            activeTab === 'routes' 
-              ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-300' 
-              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-gray-400'
-          }`}
-          onClick={() => setActiveTab('routes')}
-        >
-          Route Optimizer
-        </button>
+        {/* Route Optimizer - Only for admins (who can also be volunteers) */}
+        {isAdmin && (
+          <button 
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 ${
+              activeTab === 'routes' 
+                ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-300' 
+                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-gray-400'
+            }`}
+            onClick={() => setActiveTab('routes')}
+          >
+            Route Optimizer
+          </button>
+        )}
         {isAdmin && (
           <>
             <button 
@@ -133,7 +136,7 @@ export default function Dashboard({ user }) {
         {activeTab === 'view' && (
           <RequestList key={refreshKey} user={user} />
         )}
-        {activeTab === 'routes' && (
+        {activeTab === 'routes' && isAdmin && (
           <RouteOptimizer user={user} />
         )}
         {activeTab === 'admin' && isAdmin && (
