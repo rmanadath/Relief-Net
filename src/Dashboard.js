@@ -6,10 +6,11 @@ import { supabase } from './supabase'
 import RequestForm from './RequestForm'
 import RequestList from './RequestList'
 import AdminPanel from './AdminPanel'
-import RouteOptimizer from './components/RouteOptimizer'
+import VolunteerDashboard from './components/VolunteerDashboard'
 
 export default function Dashboard({ user }) {
   const isAdmin = user.role === 'admin'
+  const isVolunteer = user.role === 'volunteer' || user.role === 'admin' // Admins can also volunteer
   // Normal users should start on 'post' tab, admins can access all tabs
   const [activeTab, setActiveTab] = useState('post')
   const [refreshKey, setRefreshKey] = useState(0)
@@ -17,10 +18,14 @@ export default function Dashboard({ user }) {
   
   // Prevent normal users from accessing admin/volunteer tabs
   useEffect(() => {
-    if (!isAdmin && (activeTab === 'admin' || activeTab === 'assign' || activeTab === 'routes')) {
+    if (!isAdmin && (activeTab === 'admin' || activeTab === 'assign')) {
       setActiveTab('post')
     }
-  }, [isAdmin, activeTab])
+    // Volunteers can access routes tab, but not admin tabs
+    if (!isVolunteer && activeTab === 'routes') {
+      setActiveTab('post')
+    }
+  }, [isAdmin, isVolunteer, activeTab])
 
   // Dynamically load AssignmentDashboard only on client side (Leaflet requires window)
   useEffect(() => {
@@ -95,17 +100,17 @@ export default function Dashboard({ user }) {
         >
           View Requests
         </button>
-        {/* Route Optimizer - Only for admins (who can also be volunteers) */}
-        {isAdmin && (
+        {/* Volunteer Dashboard - For admins and volunteers */}
+        {(isAdmin || user.role === 'volunteer') && (
           <button 
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 ${
+            className={`rounded-lg px-5 py-2.5 text-sm font-semibold transition-all duration-200 ${
               activeTab === 'routes' 
-                ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-300' 
-                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-gray-400'
+                ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-300' 
+                : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 hover:border-slate-400 hover:shadow-sm'
             }`}
             onClick={() => setActiveTab('routes')}
           >
-            Route Optimizer
+            Volunteer Dashboard
           </button>
         )}
         {isAdmin && (
@@ -144,8 +149,8 @@ export default function Dashboard({ user }) {
         {activeTab === 'view' && (
           <RequestList key={refreshKey} user={user} />
         )}
-        {activeTab === 'routes' && isAdmin && (
-          <RouteOptimizer user={user} />
+        {activeTab === 'routes' && isVolunteer && (
+          <VolunteerDashboard user={user} />
         )}
         {activeTab === 'admin' && isAdmin && (
           <AdminPanel user={user} onUpdate={handleRequestSubmitted} />
