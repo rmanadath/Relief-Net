@@ -34,6 +34,8 @@ NEXT_PUBLIC_SUPABASE_URL=https://jnsjakpcqoilbezhexce.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key_here
 
 # Backend API URL (Public - exposed to browser)
+# REQUIRED: The code in src/services/backendApi.js uses this variable
+# If not set, defaults to http://localhost:8080 (won't work in production)
 NEXT_PUBLIC_API_URL=https://your-backend.railway.app
 
 # Node Environment

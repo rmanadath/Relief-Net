@@ -10,6 +10,10 @@ Your project consists of two services:
 
 You'll need to deploy them as **two separate services** on Railway.
 
+### About `NEXT_PUBLIC_API_URL`
+
+The frontend code in `src/services/backendApi.js` already supports the `NEXT_PUBLIC_API_URL` environment variable. Locally, if you don't set it, it defaults to `http://localhost:8080` (which works for local development). However, **for Railway deployment, you MUST set this variable** to your backend Railway URL, otherwise the frontend will try to connect to localhost which won't work in production.
+
 ---
 
 ## Step 1: Deploy the Backend Service
@@ -36,7 +40,7 @@ NODE_ENV=production
 FRONTEND_URL=https://your-frontend-url.railway.app
 
 # Supabase Configuration
-SUPABASE_URL=https://jnsjakpcqoilbezhexce.supabase.co
+SUPABASE_URL=https://jnsjakpcqoilbezhexce.supabase.com
 SUPABASE_ANON_KEY=your_supabase_anon_key_here
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
 
@@ -84,7 +88,9 @@ Go to the **Variables** tab and add:
 NEXT_PUBLIC_SUPABASE_URL=https://jnsjakpcqoilbezhexce.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key_here
 
-# Backend API URL (use the backend Railway URL from Step 1.5)
+# Backend API URL (REQUIRED for Railway - use the backend Railway URL from Step 1.5)
+# Note: The code in src/services/backendApi.js checks for this variable
+# If not set, it defaults to http://localhost:8080 which won't work in production
 NEXT_PUBLIC_API_URL=https://your-backend.railway.app
 
 # Node Environment
@@ -93,6 +99,7 @@ NODE_ENV=production
 
 **Important Notes:**
 - `NEXT_PUBLIC_*` variables are exposed to the browser, so use the anon key (not service role key)
+- **`NEXT_PUBLIC_API_URL` is required for Railway deployment** - the code in `src/services/backendApi.js` (line 6) checks for this variable. Locally it defaults to `http://localhost:8080`, but for Railway you must set it to your backend Railway URL
 - Set `NEXT_PUBLIC_API_URL` to your backend Railway URL (without trailing slash)
 - Use the same Supabase URL and anon key as in your backend
 

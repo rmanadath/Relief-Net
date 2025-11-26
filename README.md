@@ -83,9 +83,15 @@ npm install
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://jnsjakpcqoilbezhexce.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impuc2pha3BjcW9pbGJlemhleGNlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEwNzE1NjgsImV4cCI6MjA3NjY0NzU2OH0.kvWRxdr_0QctvUGPwaGdq016fYqNKaCfAk9smi0NcVQ
+
+# Optional: Backend API URL (only needed if backend runs on different port or remote URL)
+# If not set, defaults to http://localhost:8080
+# NEXT_PUBLIC_API_URL=http://localhost:8080
 ```
 
 **Note:** The `.env.local` file is NOT in the repository (it's gitignored). You MUST create it manually! See `SETUP-GUIDE.md` for detailed instructions.
+
+**For Railway Deployment:** You'll need to set `NEXT_PUBLIC_API_URL` in Railway's environment variables (not in `.env.local`). See `RAILWAY-DEPLOYMENT.md` for details.
 
 4. **Set up Supabase database:**
 
