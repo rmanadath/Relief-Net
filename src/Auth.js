@@ -96,16 +96,6 @@ export default function Auth() {
         >
           {isLogin ? 'Need an account? Sign Up' : 'Have an account? Login'}
         </button>
-        <button 
-          type="button" 
-          className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors"
-          onClick={() => {
-            setEmail('test@example.com')
-            setPassword('password123')
-          }}
-        >
-          Fill Test Data
-        </button>
       </div>
     </form>
     </div>
