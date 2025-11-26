@@ -2,7 +2,8 @@
 -- Add new columns for route optimization and volunteer assignment
 
 -- Add assigned_volunteer column to requests table
-ALTER TABLE requests 
+-- Use public schema explicitly for Supabase
+ALTER TABLE public.requests 
 ADD COLUMN IF NOT EXISTS assigned_volunteer TEXT,
 ADD COLUMN IF NOT EXISTS route_order INTEGER;
 

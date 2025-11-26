@@ -26,9 +26,9 @@ export default function AdminPanel({ user, onUpdate }) {
     if (!error && data) {
       const stats = {
         total: data.length,
-        open: data.filter(r => r.status === 'open').length,
+        open: data.filter(r => r.status === 'open' || r.status === 'pending').length,
         inProgress: data.filter(r => r.status === 'in-progress').length,
-        fulfilled: data.filter(r => r.status === 'fulfilled').length,
+        fulfilled: data.filter(r => r.status === 'fulfilled' || r.status === 'resolved').length,
         highPriority: data.filter(r => r.priority === 'high').length,
       }
       setAnalytics(stats)
@@ -71,17 +71,64 @@ export default function AdminPanel({ user, onUpdate }) {
   }
 
   const assignVolunteer = async (requestId, volunteerName) => {
-    const { error } = await supabase
-      .from('requests')
-      .update({ assigned_volunteer: volunteerName, status: 'in-progress' })
-      .eq('id', requestId)
+    if (!volunteerName || !volunteerName.trim()) {
+      alert('Please enter a volunteer name')
+      return
+    }
+
+    const trimmedName = volunteerName.trim()
+
+    // Update: assigned_volunteer is TEXT field for volunteer name
+    // assigned_to is UUID field for user ID (don't set it with name)
+    // Always update status to 'in-progress' when assigning volunteer
+    const updateData = {
+      assigned_volunteer: trimmedName,
+      status: 'in-progress' // Force status to in-progress
+    }
     
-    if (!error) {
+    // Don't set assigned_to unless we have a UUID - it's for linking to user accounts
+
+    console.log('Assigning volunteer:', { requestId, volunteerName: trimmedName, updateData })
+
+    const { data, error } = await supabase
+      .from('requests')
+      .update(updateData)
+      .eq('id', requestId)
+      .select()
+    
+    if (error) {
+      console.error('Error assigning volunteer:', error)
+      console.error('Error details:', JSON.stringify(error, null, 2))
+      alert(`Failed to assign volunteer: ${error.message}\n\nCheck console for details.`)
+      return
+    }
+
+    if (data && data.length > 0) {
+      // Update local state with the returned data from database
+      const updatedRequest = data[0]
+      console.log('✅ Updated request from database:', updatedRequest)
+      console.log('✅ Status after update:', updatedRequest.status)
+      console.log('✅ Assigned volunteer:', updatedRequest.assigned_volunteer)
+      
+      // Update local state immediately
       setRequests(requests.map(req => 
-        req.id === requestId ? { ...req, assigned_volunteer: volunteerName, status: 'in-progress' } : req
+        req.id === requestId ? { ...req, ...updatedRequest } : req
       ))
-      fetchAnalytics()
+      
+      // Refresh analytics and trigger parent update
+      await fetchAnalytics()
       onUpdate()
+      
+      // Force a full refresh to ensure UI is in sync with database
+      setTimeout(async () => {
+        await fetchAllRequests()
+        await fetchAnalytics()
+      }, 500)
+    } else {
+      console.warn('⚠️ Update succeeded but no data returned, refreshing all requests...')
+      // Force refresh to get latest data from database
+      await fetchAllRequests()
+      await fetchAnalytics()
     }
   }
 
@@ -215,7 +262,7 @@ export default function AdminPanel({ user, onUpdate }) {
                 <p><strong>Priority:</strong> {(request.priority || 'medium')}</p>
                 <p><strong>Location:</strong> {request.location}</p>
                 <p><strong>Date:</strong> {new Date(request.created_at).toLocaleDateString()}</p>
-                <p><strong>Assigned To:</strong> {request.assigned_to || '—'}</p>
+                <p><strong>Assigned To:</strong> {request.assigned_to || request.assigned_volunteer || '—'}</p>
                 <p><strong>Contact:</strong> {request.contact}</p>
               </div>
               
@@ -223,16 +270,16 @@ export default function AdminPanel({ user, onUpdate }) {
                 <p>{request.description}</p>
               </div>
               
-              {request.assigned_volunteer && (
+              {(request.assigned_volunteer || request.assigned_to) && (
                 <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
                   <p className="text-blue-800">
-                    <strong>Volunteer:</strong> {request.assigned_volunteer}
+                    <strong>Volunteer:</strong> {request.assigned_volunteer || request.assigned_to}
                   </p>
                 </div>
               )}
 
               <div className="admin-actions flex flex-col gap-2">
-                {!request.assigned_volunteer && (
+                {!request.assigned_volunteer && !request.assigned_to && (
                   <button
                     onClick={() => {
                       const volunteerName = prompt('Enter volunteer name:')
