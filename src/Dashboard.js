@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { supabase } from './supabase'
 import RequestForm from './RequestForm'
 import RequestList from './RequestList'
@@ -41,16 +42,23 @@ export default function Dashboard({ user }) {
   return (
     <div className="dashboard max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <header className="dashboard-header flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white border border-slate-200 rounded-xl shadow-sm px-6 py-5 mb-6">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-1">
-            <a 
-              href="/" 
-              className="hover:text-indigo-600 transition-colors cursor-pointer"
-            >
+        <div className="flex items-center gap-4">
+          <Link 
+            href="/" 
+            className="text-indigo-600 hover:text-indigo-700 transition-colors font-semibold flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            Home
+          </Link>
+          <div className="h-6 w-px bg-slate-300"></div>
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900 mb-1">
               Welcome to ReliefNet
-            </a>
-          </h2>
-          <p className="text-sm text-slate-600">Disaster relief coordination platform</p>
+            </h2>
+            <p className="text-sm text-slate-600">Disaster relief coordination platform</p>
+          </div>
         </div>
         <div className="user-info flex items-center gap-4">
           <div className="text-right">

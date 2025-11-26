@@ -1,8 +1,11 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { supabase } from './supabase'
 
-export default function Auth() {
+export default function Auth({ redirectUrl, message }) {
+  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLogin, setIsLogin] = useState(true)
@@ -33,14 +36,18 @@ export default function Auth() {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) {
           alert(`Login error: ${error.message}`)
+        } else {
+          // Success - user will be set automatically by onAuthStateChange
+          // The login page will handle redirect when user is authenticated
         }
-        // Success - user will be set automatically by onAuthStateChange
       } else {
         const { error } = await supabase.auth.signUp({ email, password })
         if (error) {
           alert(`Signup error: ${error.message}`)
         } else {
           alert('Check your email for confirmation')
+          // After signup, redirect to login mode
+          setIsLogin(true)
         }
       }
     } catch (error) {
@@ -53,8 +60,30 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50 p-4">
-      <form onSubmit={handleSubmit} className="auth-form bg-white border border-slate-200 rounded-xl shadow-lg p-8 w-full max-w-md">
-        <h2 className="text-2xl font-bold text-slate-900 mb-6 text-center">{isLogin ? 'Login' : 'Sign Up'}</h2>
+      <div className="w-full max-w-md">
+        {/* Home Button */}
+        <Link 
+          href="/" 
+          className="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-700 font-medium mb-4 transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Back to Home
+        </Link>
+        
+        <form onSubmit={handleSubmit} className="auth-form bg-white border border-slate-200 rounded-xl shadow-lg p-8 w-full">
+          {message && (
+            <div className="mb-6 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+              <div className="flex items-start">
+                <svg className="w-5 h-5 text-indigo-600 mt-0.5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-sm text-indigo-800">{message}</p>
+              </div>
+            </div>
+          )}
+          <h2 className="text-2xl font-bold text-slate-900 mb-6 text-center">{isLogin ? 'Sign In' : 'Create Account'}</h2>
         <div className="form-group mb-5">
           <label className="block text-sm font-semibold text-slate-700 mb-2">Email</label>
         <input
@@ -87,7 +116,7 @@ export default function Auth() {
           className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed" 
           disabled={submitting}
         >
-          {submitting ? 'Please wait…' : isLogin ? 'Login' : 'Sign Up'}
+          {submitting ? 'Please wait…' : isLogin ? 'Sign In' : 'Create Account'}
         </button>
         <button 
           type="button" 
@@ -118,6 +147,7 @@ export default function Auth() {
         </button>
       </div>
     </form>
+      </div>
     </div>
   )
 }

@@ -1,5 +1,6 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { createClient } from "@supabase/supabase-js";
 
@@ -13,8 +14,11 @@ type FormData = {
 };
 
 export default function PostRequest() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start with loading to check auth
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -28,7 +32,35 @@ export default function PostRequest() {
     return createClient(supabaseUrl, supabaseAnon);
   }, [supabaseUrl, supabaseAnon]);
 
+  // Check authentication on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (!supabase) {
+        setLoading(false);
+        return;
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        // Redirect to login with return URL
+        router.push(`/login?redirect=/post-request&message=Please sign in or create an account to post a request`);
+        return;
+      }
+
+      setIsAuthenticated(true);
+      setLoading(false);
+    };
+
+    checkAuth();
+  }, [supabase, router]);
+
   const onSubmit = async (data: FormData) => {
+    if (!isAuthenticated) {
+      router.push(`/login?redirect=/post-request&message=Please sign in or create an account to post a request`);
+      return;
+    }
+
     setLoading(true);
     setErrorMsg("");
     setSuccessMsg("");
@@ -39,8 +71,15 @@ export default function PostRequest() {
       return;
     }
 
-    // Get current user if authenticated
+    // Get current user (should be authenticated at this point)
     const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      setErrorMsg("You must be logged in to post a request.");
+      setLoading(false);
+      router.push(`/login?redirect=/post-request&message=Please sign in or create an account to post a request`);
+      return;
+    }
     
     const { error } = await supabase.from("requests").insert([
       {
@@ -50,7 +89,7 @@ export default function PostRequest() {
         priority: data.priority || 'medium',
         description: data.description,
         location: data.location,
-        user_id: session?.user?.id || null,
+        user_id: session.user.id,
         status: 'open',
       },
     ]);
@@ -61,9 +100,48 @@ export default function PostRequest() {
     } else {
       setSuccessMsg("✅ Request submitted successfully!");
       reset();
+      // Redirect to dashboard after successful submission
+      setTimeout(() => {
+        router.push('/login');
+      }, 2000);
     }
     setLoading(false);
   };
+
+  // Show loading state while checking authentication
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If not authenticated, this should redirect, but show a message just in case
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-6 text-center">
+          <div className="mb-4">
+            <svg className="w-16 h-16 text-indigo-600 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Authentication Required</h2>
+          <p className="text-gray-600 mb-6">Please sign in or create an account to post a request.</p>
+          <a
+            href="/login?redirect=/post-request"
+            className="inline-block bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
+          >
+            Sign In / Sign Up
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
